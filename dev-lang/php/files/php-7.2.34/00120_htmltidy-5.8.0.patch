@@ -1,0 +1,12 @@
+diff -urN a/ext/tidy/tidy.c b/ext/tidy/tidy.c
+--- a/ext/tidy/tidy.c	2020-09-30 08:15:51.000000000 +0300
++++ b/ext/tidy/tidy.c	2026-10-16 16:36:56.607285200 +0300
+@@ -35,7 +35,7 @@
+ #if HAVE_TIDYBUFFIO_H
+ #include "tidybuffio.h"
+ #else
+-#include "buffio.h"
++#include "tidybuffio.h"
+ #endif
+ 
+ /* compatibility with older versions of libtidy */

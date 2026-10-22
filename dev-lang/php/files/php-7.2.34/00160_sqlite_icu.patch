@@ -1,0 +1,12 @@
+diff -urN a/ext/pdo_sqlite/config.m4 b/ext/pdo_sqlite/config.m4
+--- a/ext/pdo_sqlite/config.m4	2020-09-30 08:15:53.000000000 +0300
++++ b/ext/pdo_sqlite/config.m4	2026-10-16 16:37:00.394087692 +0300
+@@ -54,7 +54,7 @@
+     PHP_ADD_INCLUDE($PDO_SQLITE_DIR/include)
+ 
+     LIBNAME=sqlite3
+-    LIBSYMBOL=sqlite3_open
++    LIBSYMBOL=sqlite3_prepare_v2
+ 
+     PHP_CHECK_LIBRARY($LIBNAME,$LIBSYMBOL,
+     [

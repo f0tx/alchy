@@ -1,0 +1,171 @@
+diff -urN a/acinclude.m4 b/acinclude.m4
+--- a/acinclude.m4	2020-09-30 08:15:55.000000000 +0300
++++ b/acinclude.m4	2026-10-16 16:37:01.396459598 +0300
+@@ -1339,64 +1339,6 @@
+ ])
+ 
+ dnl
+-dnl PHP_READDIR_R_TYPE
+-dnl
+-AC_DEFUN([PHP_READDIR_R_TYPE],[
+-  dnl HAVE_READDIR_R is also defined by libmysql
+-  AC_CHECK_FUNC(readdir_r,ac_cv_func_readdir_r=yes,ac_cv_func_readdir=no)
+-  if test "$ac_cv_func_readdir_r" = "yes"; then
+-  AC_CACHE_CHECK(for type of readdir_r, ac_cv_what_readdir_r,[
+-    AC_TRY_RUN([
+-#define _REENTRANT
+-#include <sys/types.h>
+-#include <dirent.h>
+-
+-#ifndef PATH_MAX
+-#define PATH_MAX 1024
+-#endif
+-
+-main() {
+-  DIR *dir;
+-  char entry[sizeof(struct dirent)+PATH_MAX];
+-  struct dirent *pentry = (struct dirent *) &entry;
+-
+-  dir = opendir("/");
+-  if (!dir)
+-    exit(1);
+-  if (readdir_r(dir, (struct dirent *) entry, &pentry) == 0) {
+-    close(dir);
+-    exit(0);
+-  }
+-  close(dir);
+-  exit(1);
+-}
+-    ],[
+-      ac_cv_what_readdir_r=POSIX
+-    ],[
+-      AC_TRY_CPP([
+-#define _REENTRANT
+-#include <sys/types.h>
+-#include <dirent.h>
+-int readdir_r(DIR *, struct dirent *);
+-        ],[
+-          ac_cv_what_readdir_r=old-style
+-        ],[
+-          ac_cv_what_readdir_r=none
+-      ])
+-    ],[
+-      ac_cv_what_readdir_r=none
+-   ])
+-  ])
+-    case $ac_cv_what_readdir_r in
+-    POSIX)
+-      AC_DEFINE(HAVE_POSIX_READDIR_R,1,[whether you have POSIX readdir_r]);;
+-    old-style)
+-      AC_DEFINE(HAVE_OLD_READDIR_R,1,[whether you have old-style readdir_r]);;
+-    esac
+-  fi
+-])
+-
+-dnl
+ dnl PHP_TM_GMTOFF
+ dnl
+ AC_DEFUN([PHP_TM_GMTOFF],[
+@@ -1761,36 +1703,36 @@
+       cookie_io_functions_t=cookie_io_functions_t
+       have_fopen_cookie=yes
+ 
+-dnl even newer glibcs have a different seeker definition...
+-AC_TRY_RUN([
++dnl Even newer glibcs have a different seeker definition.
++AC_RUN_IFELSE([AC_LANG_SOURCE([[
+ #define _GNU_SOURCE
+ #include <stdio.h>
+ 
+ struct cookiedata {
+-  __off64_t pos;
++  off64_t pos;
+ };
+ 
+-__ssize_t reader(void *cookie, char *buffer, size_t size)
++ssize_t reader(void *cookie, char *buffer, size_t size)
+ { return size; }
+-__ssize_t writer(void *cookie, const char *buffer, size_t size)
++ssize_t writer(void *cookie, const char *buffer, size_t size)
+ { return size; }
+ int closer(void *cookie)
+ { return 0; }
+-int seeker(void *cookie, __off64_t *position, int whence)
++int seeker(void *cookie, off64_t *position, int whence)
+ { ((struct cookiedata*)cookie)->pos = *position; return 0; }
+ 
+ cookie_io_functions_t funcs = {reader, writer, seeker, closer};
+ 
+-main() {
++int main() {
+   struct cookiedata g = { 0 };
+   FILE *fp = fopencookie(&g, "r", funcs);
+ 
+   if (fp && fseek(fp, 8192, SEEK_SET) == 0 && g.pos == 8192)
+-    exit(0);
+-  exit(1);
++    return 0;
++  return 1;
+ }
+ 
+-], [
++]])], [
+   cookie_io_functions_use_off64_t=yes
+ ], [
+   cookie_io_functions_use_off64_t=no
+@@ -1800,12 +1742,11 @@
+ 
+     else
+ 
+-dnl older glibc versions (up to 2.1.2 ?)
+-dnl call it _IO_cookie_io_functions_t
+-AC_TRY_COMPILE([
++dnl Older glibc versions (up to 2.1.2?) call it _IO_cookie_io_functions_t.
++AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+ #define _GNU_SOURCE
+ #include <stdio.h>
+-], [ _IO_cookie_io_functions_t cookie; ], [have_IO_cookie_io_functions_t=yes], [])
++]], [[_IO_cookie_io_functions_t cookie;]])], [have_IO_cookie_io_functions_t=yes], [])
+       if test "$have_cookie_io_functions_t" = "yes" ; then
+         cookie_io_functions_t=_IO_cookie_io_functions_t
+         have_fopen_cookie=yes
+diff -urN a/configure.ac b/configure.ac
+--- a/configure.ac	2020-09-30 08:15:50.000000000 +0300
++++ b/configure.ac	2026-10-16 16:37:01.363021350 +0300
+@@ -745,7 +745,6 @@
+ dnl PHP_AC_BROKEN_SNPRINTF
+ PHP_DECLARED_TIMEZONE
+ PHP_TIME_R_TYPE
+-PHP_READDIR_R_TYPE
+ PHP_CHECK_IN_ADDR_T
+ 
+ AC_CHECK_FUNCS(crypt_r, [ php_crypt_r="1" ], [ php_crypt_r="0" ])
+diff -urN a/ext/zip/lib/mkstemp.c b/ext/zip/lib/mkstemp.c
+--- a/ext/zip/lib/mkstemp.c	2020-09-30 08:15:51.000000000 +0300
++++ b/ext/zip/lib/mkstemp.c	2026-10-16 16:37:01.363161978 +0300
+@@ -38,6 +38,7 @@
+ #include <ctype.h>
+ #include <errno.h>
+ #include <fcntl.h>
++#include <unistd.h>
+ #ifdef _WIN32
+ #include <io.h>
+ #endif
+diff -urN a/Zend/zend_language_parser.y b/Zend/zend_language_parser.y
+--- a/Zend/zend_language_parser.y	2020-09-30 08:15:55.000000000 +0300
++++ b/Zend/zend_language_parser.y	2026-10-16 16:37:01.395999042 +0300
+@@ -1,3 +1,4 @@
++%require "3.0"
+ %{
+ /*
+    +----------------------------------------------------------------------+
+@@ -43,7 +44,8 @@
+ 
+ %}
+ 
+-%pure-parser
++%define api.pure full
++%define parse.error verbose
+ %expect 0
+ 
+ %code requires {

@@ -1,0 +1,270 @@
+--- a/ext/dom/dom_iterators.c	2025-01-02 17:04:53.033827355 +0100
++++ b/ext/dom/dom_iterators.c	2025-01-02 17:17:49.017318740 +0100
+@@ -42,7 +42,11 @@
+ 	xmlNotation *notation;
+ };
+ 
+-static void itemHashScanner (void *payload, void *data, xmlChar *name) /* {{{ */
++#if LIBXML_VERSION >= 20908
++static void itemHashScanner (void *payload, void *data, const xmlChar *name) /* {{{ */
++#else
++static void itemHashScanner (void *payload, void *data, xmlChar *name)
++#endif
+ {
+ 	nodeIterator *priv = (nodeIterator *)data;
+ 
+--- a/ext/fileinfo/libmagic/funcs.c	2025-01-02 17:21:47.698399684 +0100
++++ b/ext/fileinfo/libmagic/funcs.c	2025-01-02 17:28:14.760153645 +0100
+@@ -437,6 +437,8 @@
+ 	return ms->o.buf == NULL ? 0 : strlen(ms->o.buf);
+ }
+ 
++
++protected int
+ file_replace(struct magic_set *ms, const char *pat, const char *rep)
+ {
+ 	zval *patt;
+--- a/ext/mbstring/libmbfl/filters/mbfilter_iso2022jp_mobile.c	2025-01-02 17:29:29.910501588 +0100
++++ b/ext/mbstring/libmbfl/filters/mbfilter_iso2022jp_mobile.c	2025-01-02 17:38:13.922923950 +0100
+@@ -48,7 +48,7 @@
+ 	mbfl_no_encoding_2022jp_kddi,
+ 	"ISO-2022-JP-MOBILE#KDDI",
+ 	"ISO-2022-JP",
+-	mbfl_encoding_2022jp_kddi_aliases,
++	&mbfl_encoding_2022jp_kddi_aliases,
+ 	NULL,
+ 	MBFL_ENCTYPE_MBCS | MBFL_ENCTYPE_SHFTCODE | MBFL_ENCTYPE_GL_UNSAFE
+ };
+--- a/ext/mbstring/libmbfl/filters/mbfilter_utf8_mobile.c	2025-01-02 17:39:17.193216086 +0100
++++ b/ext/mbstring/libmbfl/filters/mbfilter_utf8_mobile.c	2025-01-02 17:50:50.566379632 +0100
+@@ -183,6 +183,7 @@
+ };
+ 
+ #define CK(statement)	do { if ((statement) < 0) return (-1); } while (0)
++int mbfl_filt_put_invalid_char(int c, mbfl_convert_filter *filter);
+ 
+ /*
+  * UTF-8 => wchar
+@@ -207,7 +208,7 @@
+ 			filter->status = 0x30;
+ 			filter->cache = c & 0x7;
+ 		} else {
+-			mbfl_filt_put_invalid_char(c, filter);
++			CK(mbfl_filt_put_invalid_char(c, filter));
+ 		}
+ 		break;
+ 	case 0x10: /* 2byte code 2nd char: 0x80-0xbf */
+@@ -237,7 +238,7 @@
+ 			}
+ 			CK((*filter->output_function)(s, filter->data));
+ 		} else {
+-			mbfl_filt_put_invalid_char(filter->cache, filter);
++			CK(mbfl_filt_put_invalid_char(filter->cache, filter));
+ 			goto retry;			
+ 		}
+ 		break;
+@@ -252,7 +253,7 @@
+ 			filter->cache = s;
+ 			filter->status++;
+ 		} else {
+-			mbfl_filt_put_invalid_char(filter->cache, filter);
++			CK(mbfl_filt_put_invalid_char(filter->cache, filter));
+ 			goto retry;						
+ 		}
+ 		break;
+@@ -267,7 +268,7 @@
+ 			filter->cache = s;
+ 			filter->status++;
+ 		} else {
+-			mbfl_filt_put_invalid_char(filter->cache, filter);
++			CK(mbfl_filt_put_invalid_char(filter->cache, filter));
+ 			goto retry;						
+ 		}
+ 		break;
+@@ -276,7 +277,7 @@
+ 			filter->cache = (filter->cache<<6) | (c & 0x3f);
+ 			filter->status++;
+ 		} else {
+-			mbfl_filt_put_invalid_char(filter->cache, filter);
++			CK(mbfl_filt_put_invalid_char(filter->cache, filter));
+ 			goto retry;						
+ 		}
+ 		break;
+--- a/ext/session/session.c	2025-01-02 17:57:16.278119296 +0100
++++ b/ext/session/session.c	2025-01-02 18:08:45.371239343 +0100
+@@ -864,7 +864,7 @@
+ 
+ 	PHP_VAR_UNSERIALIZE_INIT(var_hash);
+ 	ALLOC_INIT_ZVAL(session_vars);
+-	if (php_var_unserialize(&session_vars, &val, endptr, &var_hash TSRMLS_CC)) {
++	if (php_var_unserialize(&session_vars, (const unsigned char **)&val, (const unsigned char *)endptr, &var_hash TSRMLS_CC)) {
+ 		var_push_dtor(&var_hash, &session_vars);
+ 	}
+ 
+--- a/ext/zip/lib/mkstemp.c	2025-01-02 18:09:50.581535651 +0100
++++ b/ext/zip/lib/mkstemp.c	2025-01-02 18:32:20.407665250 +0100
+@@ -38,6 +38,7 @@
+ #include <ctype.h>
+ #include <errno.h>
+ #include <fcntl.h>
++#include <unistd.h>
+ #ifdef _WIN32
+ #include <io.h>
+ #endif
+--- a/acinclude.m4	2025-01-02 18:33:26.667966015 +0100
++++ b/acinclude.m4	2025-01-02 19:13:34.579150893 +0100
+@@ -1351,61 +1351,6 @@
+ ])
+ 
+ dnl
+-dnl PHP_READDIR_R_TYPE
+-dnl 
+-AC_DEFUN([PHP_READDIR_R_TYPE],[
+-  dnl HAVE_READDIR_R is also defined by libmysql
+-  AC_CHECK_FUNC(readdir_r,ac_cv_func_readdir_r=yes,ac_cv_func_readdir=no)
+-  if test "$ac_cv_func_readdir_r" = "yes"; then
+-  AC_CACHE_CHECK(for type of readdir_r, ac_cv_what_readdir_r,[
+-    AC_TRY_RUN([
+-#define _REENTRANT
+-#include <sys/types.h>
+-#include <dirent.h>
+-
+-#ifndef PATH_MAX
+-#define PATH_MAX 1024
+-#endif
+-
+-main() {
+-  DIR *dir;
+-  char entry[sizeof(struct dirent)+PATH_MAX];
+-  struct dirent *pentry = (struct dirent *) &entry;
+-
+-  dir = opendir("/");
+-  if (!dir) 
+-    exit(1);
+-  if (readdir_r(dir, (struct dirent *) entry, &pentry) == 0)
+-    exit(0);
+-  exit(1);
+-}
+-    ],[
+-      ac_cv_what_readdir_r=POSIX
+-    ],[
+-      AC_TRY_CPP([
+-#define _REENTRANT
+-#include <sys/types.h>
+-#include <dirent.h>
+-int readdir_r(DIR *, struct dirent *);
+-        ],[
+-          ac_cv_what_readdir_r=old-style
+-        ],[
+-          ac_cv_what_readdir_r=none
+-      ])
+-    ],[
+-      ac_cv_what_readdir_r=none
+-   ])
+-  ])
+-    case $ac_cv_what_readdir_r in
+-    POSIX)
+-      AC_DEFINE(HAVE_POSIX_READDIR_R,1,[whether you have POSIX readdir_r]);;
+-    old-style)
+-      AC_DEFINE(HAVE_OLD_READDIR_R,1,[whether you have old-style readdir_r]);;
+-    esac
+-  fi
+-])
+-
+-dnl
+ dnl PHP_TM_GMTOFF
+ dnl 
+ AC_DEFUN([PHP_TM_GMTOFF],[
+@@ -1715,51 +1715,50 @@
+       cookie_io_functions_t=cookie_io_functions_t
+       have_fopen_cookie=yes
+ 
+-dnl even newer glibcs have a different seeker definition...
+-AC_TRY_RUN([
++dnl Even newer glibcs have a different seeker definition.
++AC_RUN_IFELSE([AC_LANG_SOURCE([[
+ #define _GNU_SOURCE
+ #include <stdio.h>
+ 
+ struct cookiedata {
+-  __off64_t pos;
++  off64_t pos;
+ };
+ 
+-__ssize_t reader(void *cookie, char *buffer, size_t size)
++ssize_t reader(void *cookie, char *buffer, size_t size)
+ { return size; }
+-__ssize_t writer(void *cookie, const char *buffer, size_t size)
++ssize_t writer(void *cookie, const char *buffer, size_t size)
+ { return size; }
+ int closer(void *cookie)
+ { return 0; }
+-int seeker(void *cookie, __off64_t *position, int whence)
++int seeker(void *cookie, off64_t *position, int whence)
+ { ((struct cookiedata*)cookie)->pos = *position; return 0; }
+ 
+ cookie_io_functions_t funcs = {reader, writer, seeker, closer};
+ 
+-main() {
++int main() {
+   struct cookiedata g = { 0 };
+   FILE *fp = fopencookie(&g, "r", funcs);
+ 
+   if (fp && fseek(fp, 8192, SEEK_SET) == 0 && g.pos == 8192)
+-    exit(0);
+-  exit(1);
++    return 0;
++  return 1;
+ }
+ 
+-], [
++]])], [
+   cookie_io_functions_use_off64_t=yes
+ ], [
+   cookie_io_functions_use_off64_t=no
+ ], [
+   cookie_io_functions_use_off64_t=no
+ ])
+-    
++
+     else
+ 
+-dnl older glibc versions (up to 2.1.2 ?)
+-dnl call it _IO_cookie_io_functions_t
+-AC_TRY_COMPILE([
++dnl Older glibc versions (up to 2.1.2?) call it _IO_cookie_io_functions_t.
++AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+ #define _GNU_SOURCE
+ #include <stdio.h>
+-], [ _IO_cookie_io_functions_t cookie; ], [have_IO_cookie_io_functions_t=yes], [])
++]], [[_IO_cookie_io_functions_t cookie;]])], [have_IO_cookie_io_functions_t=yes], [])
+       if test "$have_cookie_io_functions_t" = "yes" ; then
+         cookie_io_functions_t=_IO_cookie_io_functions_t
+         have_fopen_cookie=yes
+--- a/Zend/zend_language_parser.y	2025-01-02 19:39:37.486322134 +0100
++++ b/Zend/zend_language_parser.y	2025-01-03 08:41:51.581225708 +0100
+@@ -1,3 +1,4 @@
++%require "3.0"
+ %{
+ /*
+    +----------------------------------------------------------------------+
+@@ -44,7 +45,8 @@
+ 
+ %}
+ 
+-%pure_parser
++%define api.pure full
++%define parse.error verbose
+ %expect 3
+ 
+ %code requires {
+--- a/configure.in	2025-01-03 09:21:25.322005860 +0100
++++ b/configure.in	2025-01-03 09:22:39.302335091 +0100
+@@ -754,7 +754,6 @@
+ dnl PHP_AC_BROKEN_SNPRINTF
+ PHP_DECLARED_TIMEZONE
+ PHP_TIME_R_TYPE
+-PHP_READDIR_R_TYPE
+ PHP_CHECK_IN_ADDR_T
+ 
+ AC_CHECK_FUNCS(crypt_r, [ php_crypt_r="1" ], [ php_crypt_r="0" ])

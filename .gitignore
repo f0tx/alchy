@@ -1,0 +1,14 @@
+# portage-кэш и служебное
+metadata/md5-cache/
+packages
+profiles/updates/*
+profiles/categories.bak
+profiles/arch.list.bak
+
+# редакторский и сборочный мусор
+*~
+*.orig
+*.rej
+.*.swp
+__pycache__/
+*.pyc

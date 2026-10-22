@@ -1,0 +1,12 @@
+diff -urN a/ext/zlib/zlib.c b/ext/zlib/zlib.c
+--- a/ext/zlib/zlib.c	2015-09-01 23:09:37.000000000 +0300
++++ b/ext/zlib/zlib.c	2026-10-16 20:11:57.345705918 +0300
+@@ -1020,7 +1020,7 @@
+ 	PHP_MINFO(zlib),
+ 	"2.0",
+ 	PHP_MODULE_GLOBALS(zlib),
+-	ZEND_MODULE_GLOBALS_CTOR_N(zlib),
++	PHP_GINIT(zlib),
+ 	NULL,
+ 	NULL,
+ 	STANDARD_MODULE_PROPERTIES_EX

@@ -1,0 +1,29 @@
+diff -Naur a/libraries/liblber/lber.map.in b/libraries/liblber/lber.map.in
+--- a/libraries/liblber/lber.map.in	2026-09-08 21:00:58.000000000 +0300
++++ b/libraries/liblber/lber.map.in	2026-10-16 04:24:47.706262053 +0300
+@@ -126,9 +126,7 @@
+     ber_sockbuf_io_fd;
+     ber_sockbuf_io_readahead;
+     ber_sockbuf_io_tcp;
+-#ifdef LDAP_CONNECTIONLESS
+     ber_sockbuf_io_udp;
+-#endif
+     ber_sockbuf_remove_io;
+     ber_sos_dump;
+     ber_start;
+diff -Naur a/libraries/libldap/ldap.map.in b/libraries/libldap/ldap.map.in
+--- a/libraries/libldap/ldap.map.in	2026-10-16 04:24:47.699747699 +0300
++++ b/libraries/libldap/ldap.map.in	2026-10-16 04:24:47.706884022 +0300
+@@ -179,9 +179,7 @@
+     ldap_int_tls_start;
+     ldap_int_utils_init;
+     ldap_is_ldap_url;
+-#ifdef LDAP_CONNECTIONLESS
+     ldap_is_ldapc_url;
+-#endif
+     ldap_is_ldapi_url;
+     ldap_is_ldaps_url;
+     ldap_is_read_ready;
+# 2.7 generates the symbol version scripts via cpp; the LDAP_CONNECTIONLESS
+# guards in the .map.in templates never expand (define comes from CFLAGS),
+# dropping ber_sockbuf_io_udp from the export list. Drop the guards.

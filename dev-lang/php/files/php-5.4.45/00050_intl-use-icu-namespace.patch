@@ -1,0 +1,60 @@
+Based on the following upstream commits:
+
+https://github.com/php/php-src/commit/8d35a423838eb462cd39ee535c5d003073cc5f22
+https://github.com/php/php-src/commit/d8200e48857aeaf09f7127751efc5632ef7660a7
+https://github.com/php/php-src/commit/9a8e7b571896f39f83cb000fdb7c466b6d328d52
+diff -urN a/ext/intl/grapheme/grapheme_string.c b/ext/intl/grapheme/grapheme_string.c
+--- a/ext/intl/grapheme/grapheme_string.c	2015-09-01 23:09:37.000000000 +0300
++++ b/ext/intl/grapheme/grapheme_string.c	2026-10-16 20:11:54.390727361 +0300
+@@ -24,6 +24,7 @@
+ #include "grapheme_util.h"
+ 
+ #include <unicode/utypes.h>
++#include <unicode/utf8.h>
+ #include <unicode/ucol.h>
+ #include <unicode/ustring.h>
+ #include <unicode/ubrk.h>
+@@ -870,10 +871,10 @@
+ 	pstr = str + start;
+ 
+ 	/* just in case pstr points in the middle of a character, move forward to the start of the next char */
+-	if ( !UTF8_IS_SINGLE(*pstr) && !U8_IS_LEAD(*pstr) ) {
++	if ( !U8_IS_SINGLE(*pstr) && !U8_IS_LEAD(*pstr) ) {
+ 		unsigned char *str_end = str + str_len;
+ 
+-		while ( !UTF8_IS_SINGLE(*pstr) && !U8_IS_LEAD(*pstr) ) {
++		while ( !U8_IS_SINGLE(*pstr) && !U8_IS_LEAD(*pstr) ) {
+ 			pstr++;
+ 			if ( pstr >= str_end ) {
+ 				intl_error_set( NULL, U_ILLEGAL_ARGUMENT_ERROR,
+diff -urN a/ext/intl/msgformat/msgformat_helpers.cpp b/ext/intl/msgformat/msgformat_helpers.cpp
+--- a/ext/intl/msgformat/msgformat_helpers.cpp	2015-09-01 23:09:37.000000000 +0300
++++ b/ext/intl/msgformat/msgformat_helpers.cpp	2026-10-16 20:11:54.390911716 +0300
+@@ -76,6 +76,16 @@
+ 			case Formattable::kDouble:
+ 				convert_to_double_ex(&args[i]);
+ 			    fargs[i].setDouble(Z_DVAL_P(args[i]));
++using icu::Formattable;
++using icu::Format;
++using icu::DateFormat;
++using icu::MessageFormat;
++#ifdef HAS_MESSAGE_PATTERN
++using icu::MessagePattern;
++#endif
++using icu::MessageFormatAdapter;
++using icu::FieldPosition;
++
+ 				break;
+             
+ 	        case Formattable::kLong:
+diff -urN a/ext/intl/normalizer/normalizer_normalize.c b/ext/intl/normalizer/normalizer_normalize.c
+--- a/ext/intl/normalizer/normalizer_normalize.c	2015-09-01 23:09:37.000000000 +0300
++++ b/ext/intl/normalizer/normalizer_normalize.c	2026-10-16 20:11:54.390988438 +0300
+@@ -24,6 +24,7 @@
+ #include "normalizer_class.h"
+ #include "normalizer_normalize.h"
+ #include "intl_convert.h"
++#include <unicode/utf8.h>
+ 
+ /* {{{ proto string Normalizer::normalize( string $input [, string $form = FORM_C] )
+  * Normalize a string. }}} */

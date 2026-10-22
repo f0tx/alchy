@@ -1,0 +1,13 @@
+diff -Naur a/configure.ac b/configure.ac
+--- a/configure.ac	2026-09-08 21:00:58.000000000 +0300
++++ b/configure.ac	2026-10-16 03:54:18.301787379 +0300
+@@ -1200,7 +1200,7 @@
+ 				ol_link_tls=yes
+ 				WITH_TLS_TYPE=gnutls
+ 
+-				TLS_LIBS="-lgnutls"
++				TLS_LIBS="-lgnutls -lgcrypt"
+ 
+ 				AC_DEFINE(HAVE_GNUTLS, 1, 
+ 					[define if you have GNUtls])
+# rebased for 2.7.x: target is configure.ac now (was configure.in); add -lgcrypt for the gnutls TLS_LIBS

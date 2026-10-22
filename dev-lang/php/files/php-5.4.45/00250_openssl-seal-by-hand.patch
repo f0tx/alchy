@@ -1,0 +1,167 @@
+openssl: seal/open without EVP_SealInit()/EVP_OpenInit()
+
+EVP_SealInit() dumps core on this OpenSSL (3.6.5) inside its own
+RAND_priv_bytes_ex() call, before any error can be reported: the crash
+reproduces with a plain C program too, so it is not a PHP-side problem.
+
+Do the seal by hand, with the same semantics the deprecated helpers had:
+a random session key (RAND_bytes), the key PKCS#1-encrypted once per
+recipient (EVP_PKEY_encrypt), then CBC-encrypt the payload with that key.
+The IV is all-zero, matching what EVP_SealInit() did for php here (php
+passes iv = NULL and never returns the IV).
+
+openssl_open() mirrors it: EVP_PKEY_decrypt() the session key, then
+EVP_Decrypt* the payload. Data sealed by older builds stays readable and
+vice versa, because both sides use PKCS#1 v1.5 padding.
+
+--- a/ext/openssl/openssl.c	2026-10-22 19:16:24.988779944 +0300
++++ b/ext/openssl/openssl.c	2026-10-22 19:25:58.437862720 +0300
+@@ -4428,6 +4428,8 @@
+ 	int method_len = 0;
+ 	const EVP_CIPHER *cipher;
+ 	EVP_CIPHER_CTX *ctx = NULL;
++	unsigned char *sesskey = NULL, iv[EVP_MAX_IV_LENGTH];
++	int keylen;
+ 
+ 	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "szza/|s", &data, &data_len, &sealdata, &ekeys, &pubkeys, &method, &method_len) == FAILURE) {
+ 		return;
+@@ -4450,6 +4452,14 @@
+ 		cipher = EVP_rc4();
+ 	}
+ 
++	keylen = EVP_CIPHER_key_length(cipher);
++	sesskey = emalloc(keylen);
++	memset(iv, 0, sizeof(iv));
++	if (RAND_bytes(sesskey, keylen) <= 0) {
++		RETVAL_FALSE;
++		goto clean_exit;
++	}
++
+ 	pkeys = safe_emalloc(nkeys, sizeof(*pkeys), 0);
+ 	eksl = safe_emalloc(nkeys, sizeof(*eksl), 0);
+ 	eks = safe_emalloc(nkeys, sizeof(*eks), 0);
+@@ -4468,7 +4478,26 @@
+ 			RETVAL_FALSE;
+ 			goto clean_exit;
+ 		}
+-		eks[i] = emalloc(EVP_PKEY_size(pkeys[i]) + 1);
++		{
++			size_t eklen = (size_t)EVP_PKEY_size(pkeys[i]);
++			EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new(pkeys[i], NULL);
++
++			if (pctx == NULL || EVP_PKEY_encrypt_init(pctx) <= 0) {
++				EVP_PKEY_CTX_free(pctx);
++				php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to encrypt session key (%dth member of pubkeys)", i+1);
++				RETVAL_FALSE;
++				goto clean_exit;
++			}
++			eks[i] = emalloc(eklen + 1);
++			if (EVP_PKEY_encrypt(pctx, eks[i], &eklen, sesskey, keylen) <= 0) {
++				EVP_PKEY_CTX_free(pctx);
++				php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to encrypt session key (%dth member of pubkeys)", i+1);
++				RETVAL_FALSE;
++				goto clean_exit;
++			}
++			EVP_PKEY_CTX_free(pctx);
++			eksl[i] = (int)eklen;
++		}
+ 		zend_hash_move_forward_ex(pubkeysht, &pos);
+ 		i++;
+ 	}
+@@ -4478,28 +4507,19 @@
+ 		RETVAL_FALSE;
+ 		goto clean_exit;
+ 	}
+-	if (!EVP_EncryptInit(ctx,cipher,NULL,NULL)) {
++	if (!EVP_EncryptInit(ctx, cipher, sesskey, iv)) {
+ 		RETVAL_FALSE;
+ 		goto clean_exit;
+ 	}
+-
+-#if 0
+-	/* Need this if allow ciphers that require initialization vector */
+-	ivlen = EVP_CIPHER_CTX_iv_length(&ctx);
+-	iv = ivlen ? emalloc(ivlen + 1) : NULL;
+-#endif
+ 	/* allocate one byte extra to make room for \0 */
+-	buf = emalloc(data_len + EVP_CIPHER_CTX_block_size(ctx));
+-	EVP_CIPHER_CTX_free(ctx);
+-	ctx = EVP_CIPHER_CTX_new();
+-
+-	if (ctx == NULL || !EVP_SealInit(ctx, cipher, eks, eksl, NULL, pkeys, nkeys) || !EVP_SealUpdate(ctx, buf, &len1, (unsigned char *)data, data_len)) {
++	buf = emalloc(data_len + EVP_CIPHER_CTX_block_size(ctx) + 1);
++	if (!EVP_EncryptUpdate(ctx, buf, &len1, (unsigned char *)data, data_len)) {
+ 		RETVAL_FALSE;
+ 		efree(buf);
+ 		goto clean_exit;
+ 	}
+ 
+-	EVP_SealFinal(ctx, buf + len1, &len2);
++	EVP_EncryptFinal(ctx, buf + len1, &len2);
+ 
+ 	if (len1 + len2 > 0) {
+ 		zval_dtor(sealdata);
+@@ -4531,6 +4551,10 @@
+ 	/* freed below */
+ 
+ clean_exit:
++	if (sesskey) {
++		memset(sesskey, 0, keylen);
++		efree(sesskey);
++	}
+ 	if (ctx) {
+ 		EVP_CIPHER_CTX_free(ctx);
+ 	}
+@@ -4559,6 +4583,9 @@
+ 	unsigned char *buf;
+ 	long keyresource = -1;
+ 	EVP_CIPHER_CTX *ctx = NULL;
++	unsigned char *sesskey = NULL, iv[EVP_MAX_IV_LENGTH];
++	int keylen;
++	size_t ekeylen;
+ 	char * data;	int data_len;
+ 	char * ekey;	int ekey_len;
+ 	char *method =NULL;
+@@ -4593,10 +4620,31 @@
+ 		RETURN_FALSE;
+ 	}
+ 
++	keylen = EVP_CIPHER_key_length(cipher);
++	ekeylen = (size_t)EVP_PKEY_size(pkey);
++	sesskey = emalloc(ekeylen + 1);
++
++	{
++		EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new(pkey, NULL);
++
++		if (pctx == NULL || EVP_PKEY_decrypt_init(pctx) <= 0
++				|| EVP_PKEY_decrypt(pctx, sesskey, &ekeylen, (unsigned char *)ekey, ekey_len) <= 0) {
++			EVP_PKEY_CTX_free(pctx);
++			efree(sesskey);
++			EVP_CIPHER_CTX_free(ctx);
++			if (keyresource == -1) {
++				EVP_PKEY_free(pkey);
++			}
++			RETURN_FALSE;
++		}
++		EVP_PKEY_CTX_free(pctx);
++	}
++	memset(iv, 0, sizeof(iv));
++
+ 	buf = emalloc(data_len + 1);
+ 
+-	if (EVP_OpenInit(ctx, cipher, (unsigned char *)ekey, ekey_len, NULL, pkey) && EVP_OpenUpdate(ctx, buf, &len1, (unsigned char *)data, data_len)) {
+-		if (!EVP_OpenFinal(ctx, buf + len1, &len2) || (len1 + len2 == 0)) {
++	if (EVP_DecryptInit(ctx, cipher, sesskey, iv) && EVP_DecryptUpdate(ctx, buf, &len1, (unsigned char *)data, data_len)) {
++		if (!EVP_DecryptFinal(ctx, buf + len1, &len2) || (len1 + len2 == 0)) {
+ 			efree(buf);
+ 			RETVAL_FALSE;
+ 		} else {
+@@ -4612,6 +4660,8 @@
+ 	if (keyresource == -1) {
+ 		EVP_PKEY_free(pkey);
+ 	}
++	memset(sesskey, 0, keylen);
++	efree(sesskey);
+ 	EVP_CIPHER_CTX_free(ctx);
+ }
+ /* }}} */

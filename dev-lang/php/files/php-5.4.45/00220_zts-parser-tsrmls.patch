@@ -1,0 +1,34 @@
+ZTS: pass the TSRMLS context to the lexers in the shipped parsers
+
+The pre-generated Bison parsers in the release tarball were produced without
+ZTS: their YYLEX macro calls yylex(&yylval) with no thread context, while both
+zendlex() and ini_lex() are declared with TSRMLS_DC. The ZTS build therefore
+fails with "too few arguments to function 'zendlex'". YYLEX_PARAM cannot help
+here: the .y files declare it in %code requires, which Bison emits into the
+generated *header*, and the .c never sees it.
+
+TSRMLS_CC expands to nothing without ZTS, so passing it unconditionally keeps
+the non-threaded build working unchanged.
+
+--- a/Zend/zend_language_parser.c
++++ b/Zend/zend_language_parser.c
+@@ -2804,7 +2804,7 @@
+ #ifdef YYLEX_PARAM
+ # define YYLEX yylex (&yylval, YYLEX_PARAM)
+ #else
+-# define YYLEX yylex (&yylval)
++# define YYLEX yylex (&yylval TSRMLS_CC)
+ #endif
+ 
+ /* Enable debugging if requested.  */
+--- a/Zend/zend_ini_parser.c
++++ b/Zend/zend_ini_parser.c
+@@ -939,7 +939,7 @@
+ #ifdef YYLEX_PARAM
+ # define YYLEX yylex (&yylval, YYLEX_PARAM)
+ #else
+-# define YYLEX yylex (&yylval)
++# define YYLEX yylex (&yylval TSRMLS_CC)
+ #endif
+ 
+ /* Enable debugging if requested.  */

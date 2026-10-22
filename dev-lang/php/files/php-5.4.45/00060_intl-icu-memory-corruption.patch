@@ -1,0 +1,86 @@
+Based on the following upstream commits:
+
+https://github.com/php/php-src/commit/45a05f38410d4a67c8c83c09906e2cfb42fc6e4c
+https://github.com/php/php-src/commit/534684d1042978f3c21caf9b665a7aca27f3f325
+diff -urN a/ext/intl/msgformat/msgformat_helpers.cpp b/ext/intl/msgformat/msgformat_helpers.cpp
+--- a/ext/intl/msgformat/msgformat_helpers.cpp	2026-10-16 20:11:54.390911716 +0300
++++ b/ext/intl/msgformat/msgformat_helpers.cpp	2026-10-16 20:11:55.153130009 +0300
+@@ -27,6 +27,7 @@
+ #include "msgformat_class.h"
+ #include "msgformat_format.h"
+ #include "msgformat_helpers.h"
++#include <unicode/strenum.h>
+ #include "intl_convert.h"
+ }
+ 
+@@ -45,6 +46,7 @@
+ MessageFormatAdapter::getArgTypeList(const MessageFormat& m,
+                                      int32_t& count) {
+     return m.getArgTypeList(count);
++#define HAS_MISALLOCATE_MEMORY_BUG 1
+ }
+ U_NAMESPACE_END
+ 
+@@ -220,3 +222,23 @@
+  * vim600: noet sw=4 ts=4 fdm=marker
+  * vim<600: noet sw=4 ts=4
+  */
++#ifdef HAS_MISALLOCATE_MEMORY_BUG
++	/* There is a bug in ICU which prevents MessageFormatter::getFormats()
++	   to handle more than 10 formats correctly. The enumerator could be
++	   used to walk through the present formatters using getFormat(), which
++	   however seems to provide just a readonly access. This workaround
++	   prevents crash when there are > 10 formats but doesn't set any error.
++	   As a result, only DateFormatters with > 10 subformats are affected.
++	   This workaround should be ifdef'd out, when the bug has been fixed
++	   in ICU. */
++	icu::StringEnumeration* fnames = mf->getFormatNames(err.code);
++	if (!fnames || U_FAILURE(err.code)) {
++		return;
++	}
++	count = fnames->count(err.code);
++	delete fnames;
++	if (count > 10) {
++		return;
++	}
++#endif
++
+diff -urN a/ext/intl/tests/bug74484_MessageFormatter.phpt b/ext/intl/tests/bug74484_MessageFormatter.phpt
+--- a/ext/intl/tests/bug74484_MessageFormatter.phpt	1970-01-01 03:00:00.000000000 +0300
++++ b/ext/intl/tests/bug74484_MessageFormatter.phpt	2026-10-16 20:11:55.153253140 +0300
+@@ -0,0 +1,35 @@
++--TEST--
++Bug #74484 MessageFormatter::formatMessage memory corruption with 11+ named placeholder
++--SKIPIF--
++<?php
++if (!extension_loaded('intl'))
++	die('skip intl extension not enabled');
++if (version_compare(INTL_ICU_VERSION, '4.8') < 0)
++	die('skip for ICU 4.8+');
++?>
++--FILE--
++<?php
++$text = "{a} {b} {c} {d} {e} {f} {g} {h} {i} {j} {k} {l}";
++
++$vars = array(
++  'a' => 1,
++  'b' => 2,
++  'c' => 3,
++  'd' => 4,
++  'e' => 5,
++  'f' => 6,
++  'g' => 7,
++  'h' => 8,
++  'i' => 9,
++  'j' => 10,
++  'k' => 11,
++  'l' => 12
++);
++
++var_dump(MessageFormatter::formatMessage('en_US', $text, $vars));
++
++?>
++==DONE==
++--EXPECT--
++string(26) "1 2 3 4 5 6 7 8 9 10 11 12"
++==DONE==

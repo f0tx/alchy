@@ -1,0 +1,21 @@
+diff -urN a/ext/intl/config.m4 b/ext/intl/config.m4
+--- a/ext/intl/config.m4	2026-10-16 20:11:53.734140789 +0300
++++ b/ext/intl/config.m4	2026-10-16 20:11:58.884261129 +0300
+@@ -9,7 +9,7 @@
+   PHP_SETUP_ICU(INTL_SHARED_LIBADD)
+   PHP_SUBST(INTL_SHARED_LIBADD)
+   PHP_REQUIRE_CXX()
+-  INTL_COMMON_FLAGS="$ICU_CFLAGS -Wno-write-strings -D__STDC_LIMIT_MACROS -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1"
++  INTL_COMMON_FLAGS="$ICU_CFLAGS -Wno-write-strings -D__STDC_LIMIT_MACROS -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DU_DEFINE_FALSE_AND_TRUE=1"
+   if test "$icu_version" -ge "4002"; then
+     icu_spoof_src=" spoofchecker/spoofchecker_class.c \
+     spoofchecker/spoofchecker.c\
+@@ -69,7 +69,7 @@
+     $icu_spoof_src, $ext_shared,,$INTL_COMMON_FLAGS)
+   PHP_INTL_CPP_SOURCES="msgformat/msgformat_helpers.cpp"
+ 
+-  PHP_INTL_CPP_FLAGS="$ICU_CXXFLAGS -Wno-write-strings -D__STDC_LIMIT_MACROS -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1"
++  PHP_INTL_CPP_FLAGS="$ICU_CXXFLAGS -Wno-write-strings -D__STDC_LIMIT_MACROS -DZEND_ENABLE_STATIC_TSRMLS_CACHE=1 -DU_DEFINE_FALSE_AND_TRUE=1"
+   if test "$ext_shared" = "no"; then
+     PHP_ADD_SOURCES(PHP_EXT_DIR(intl), $PHP_INTL_CPP_SOURCES, $PHP_INTL_CPP_FLAGS)
+   else

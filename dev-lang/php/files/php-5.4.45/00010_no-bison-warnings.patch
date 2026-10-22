@@ -1,0 +1,37 @@
+From d3466a04345b31dfc62d94fe994b40321a6418ec Mon Sep 17 00:00:00 2001
+From: Michael Orlitzky <michael@orlitzky.com>
+Date: Thu, 29 Sep 2016 15:43:06 -0400
+Subject: [PATCH 1/1] Zend/acinclude.m4: don't warn about >=bison-3.0.1
+ versions.
+
+The PHP configure script will emit a warning if it thinks your bison
+version is insufficient:
+
+  WARNING: This bison version is not supported for regeneration of
+  the Zend/PHP parsers (found: 3.0, min: 204, excluded: 3.0).
+
+However, there is an error in the test that causes it to treat all
+3.0.x versions as if they were 3.0. The result is that users get
+warned about a perfectly acceptable version of bison.
+
+This patch is meant only for Gentoo, where we can require a working
+version of bison (something newer than 3.0.1). Having done so, this
+patch removes the check and the WARNING.
+
+Gentoo-Bug: 593278
+PHP-Bug: 69055
+---
+ Zend/acinclude.m4 | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+diff -urN a/Zend/acinclude.m4 b/Zend/acinclude.m4
+--- a/Zend/acinclude.m4	2015-09-01 23:09:37.000000000 +0300
++++ b/Zend/acinclude.m4	2026-10-16 20:11:52.262700542 +0300
+@@ -4,7 +4,7 @@
+ 
+ AC_DEFUN([LIBZEND_BISON_CHECK],[
+   # we only support certain bison versions
+-  bison_version_list="1.28 1.35 1.75 1.875 2.0 2.1 2.2 2.3 2.4 2.4.1 2.4.2 2.4.3 2.5 2.5.1 2.6 2.6.1 2.6.2 2.6.4"
++  bison_version_list="1.28 1.35 1.75 1.875 2.0 2.1 2.2 2.3 2.4 2.4.1 2.4.2 2.4.3 2.5 2.5.1 2.6 2.6.1 2.6.2 2.6.4 2.7 2.8 3.0 3.1 3.2 3.3 3.4 3.5 3.6 3.7 3.8 3.9 3.10"
+ 
+   # for standalone build of Zend Engine
+   test -z "$SED" && SED=sed

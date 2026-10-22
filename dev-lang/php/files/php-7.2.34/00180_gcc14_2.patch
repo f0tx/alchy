@@ -1,0 +1,12 @@
+diff -urN a/TSRM/TSRM.h b/TSRM/TSRM.h
+--- a/TSRM/TSRM.h	2020-09-30 08:15:50.000000000 +0300
++++ b/TSRM/TSRM.h	2026-10-16 16:37:02.336156626 +0300
+@@ -170,6 +170,8 @@
+ #define TSRM_SHUFFLE_RSRC_ID(rsrc_id)		((rsrc_id)+1)
+ #define TSRM_UNSHUFFLE_RSRC_ID(rsrc_id)		((rsrc_id)-1)
+ 
++extern __thread void ***tsrm_ls;
++
+ #define TSRMLS_FETCH_FROM_CTX(ctx)	void ***tsrm_ls = (void ***) ctx
+ #define TSRMLS_SET_CTX(ctx)		ctx = (void ***) tsrm_get_ls_cache()
+ #define TSRMG(id, type, element)	(TSRMG_BULK(id, type)->element)

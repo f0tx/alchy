@@ -1,0 +1,26 @@
+openssl: tolerate OIDs that OpenSSL 3.x already knows
+
+/etc/ssl/openssl.cnf still carries an oid_section (= new_oids) with
+re-declarations such as tsa_policy1 = 1.2.3.4.1. OpenSSL 3.x registers those
+itself, so OBJ_create() returns NID_undef and openssl_csr_new() aborted with
+"problem creating object tsa_policy1=1.2.3.4.1".
+
+Only fail when the OID is unknown to the library as well; an existing
+registration is the outcome we want anyway.
+
+--- a/ext/openssl/openssl.c
++++ b/ext/openssl/openssl.c
+@@ -772,7 +772,12 @@
+ 	}
+ 	for (i = 0; i < sk_CONF_VALUE_num(sktmp); i++) {
+ 		cnf = sk_CONF_VALUE_value(sktmp, i);
+-		if (OBJ_create(cnf->value, cnf->name, cnf->name) == NID_undef) {
++		if (OBJ_create(cnf->value, cnf->name, cnf->name) == NID_undef
++				&& OBJ_txt2nid(cnf->value) == NID_undef
++				&& OBJ_sn2nid(cnf->name) == NID_undef) {
++			/* OpenSSL 3.x already ships many OIDs that older system configs
++			 * re-declare in oid_section (e.g. tsa_policy*), so a failed
++			 * OBJ_create() is only fatal when the OID really is unknown. */
+ 			php_error_docref(NULL TSRMLS_CC, E_WARNING, "problem creating object %s=%s", cnf->name, cnf->value);
+ 			return FAILURE;
+ 		}

@@ -1,0 +1,18 @@
+diff -urN a/ext/libxml/libxml.c b/ext/libxml/libxml.c
+--- a/ext/libxml/libxml.c	2026-10-16 20:12:00.283999609 +0300
++++ b/ext/libxml/libxml.c	2026-10-16 20:12:04.011086992 +0300
+@@ -48,6 +48,14 @@
+ 
+ #include "php_libxml.h"
+ 
++#ifndef ATTRIBUTE_UNUSED
++# if defined(__GNUC__) || defined(__clang__)
++#  define ATTRIBUTE_UNUSED __attribute__((unused))
++# else
++#  define ATTRIBUTE_UNUSED
++# endif
++#endif
++
+ #define PHP_LIBXML_ERROR 0
+ #define PHP_LIBXML_CTX_ERROR 1
+ #define PHP_LIBXML_CTX_WARNING 2

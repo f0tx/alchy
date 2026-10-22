@@ -1,0 +1,117 @@
+--- a/ext/mssql/php_mssql.c	2025-01-07 09:39:21.423179068 +0100
++++ b/ext/mssql/php_mssql.c	2025-01-07 09:43:17.124434898 +0100
+@@ -1068,7 +1068,7 @@
+ 		column_type == SQLBINARY ||
+ 		column_type == SQLIMAGE) {
+ 		DBBINARY *bin;
+-		unsigned char *res_buf;
++		char *res_buf;
+ 		int res_length = dbdatlen(mssql_ptr->link, offset);
+ 
+ 		if (res_length == 0) {
+@@ -1079,14 +1079,14 @@
+ 			return;
+ 		}
+ 
+-		res_buf = (unsigned char *) emalloc(res_length+1);
++		res_buf = (char *) emalloc(res_length+1);
+ 		bin = ((DBBINARY *)dbdata(mssql_ptr->link, offset));
+ 		res_buf[res_length] = '\0';
+ 		memcpy(res_buf, bin, res_length);
+ 		ZVAL_STRINGL(result, res_buf, res_length, 0);
+ 	}
+ 	else if  (dbwillconvert(coltype(offset),SQLCHAR)) {
+-		unsigned char *res_buf;
++		char *res_buf;
+ 		DBDATEREC dateinfo;	
+ 		int res_length = dbdatlen(mssql_ptr->link,offset);
+ 
+@@ -1108,7 +1108,7 @@
+ 					break;
+ 			}
+ 			
+-			res_buf = (unsigned char *) emalloc(res_length+1);
++			res_buf = (char *) emalloc(res_length+1);
+ 			res_length = dbconvert(NULL,coltype(offset),dbdata(mssql_ptr->link,offset), res_length, SQLCHAR, res_buf, -1);
+ 			res_buf[res_length] = '\0';
+ 		} else {
+--- a/ext/pdo_dblib/pdo_dblib.c	2025-01-07 09:54:11.333300138 +0100
++++ b/ext/pdo_dblib/pdo_dblib.c	2025-01-07 10:05:38.266102743 +0100
+@@ -206,8 +206,8 @@
+ 	 */
+ 
+ #if !PHP_DBLIB_IS_MSSQL
+-	dberrhandle(error_handler);
+-	dbmsghandle(msg_handler);
++	dberrhandle((EHANDLEFUNC) error_handler);
++	dbmsghandle((MHANDLEFUNC) msg_handler);
+ #endif
+ 
+ 	return SUCCESS;
+--- a/ext/standard/browscap.c	2025-01-07 10:06:55.665298823 +0100
++++ b/ext/standard/browscap.c	2025-01-07 10:10:33.775036732 +0100
+@@ -340,7 +340,7 @@
+ 
+ #ifdef ZTS
+ 	ts_allocate_id(&browscap_globals_id, sizeof(browser_data),
+-		browscap_globals_ctor, NULL);
++		(ts_allocate_ctor) browscap_globals_ctor, NULL);
+ #endif
+ 	/* ctor call not really needed for non-ZTS */
+ 
+--- a/ext/standard/php_string.h	2025-01-07 10:11:27.538433248 +0100
++++ b/ext/standard/php_string.h	2025-01-07 10:55:26.429848026 +0100
+@@ -156,7 +156,7 @@
+ # define php_mblen(ptr, len) 1
+ #else
+ # if defined(_REENTRANT) && defined(HAVE_MBRLEN) && defined(HAVE_MBSTATE_T)
+-#  define php_mblen(ptr, len) ((ptr) == NULL ? memset(&BG(mblen_state), 0, sizeof(BG(mblen_state))): (int)mbrlen(ptr, len, &BG(mblen_state)))
++#  define php_mblen(ptr, len) ((ptr) == NULL ? (memset(&BG(mblen_state), 0, sizeof(BG(mblen_state))), 0) : (int)mbrlen(ptr, len, &BG(mblen_state)))
+ # else
+ #  define php_mblen(ptr, len) mblen(ptr, len)
+ # endif
+--- a/Zend/zend_globals_macros.h	2025-01-07 10:58:37.459775783 +0100
++++ b/Zend/zend_globals_macros.h	2025-01-07 11:08:11.437623514 +0100
+@@ -32,7 +32,6 @@
+ /* Compiler */
+ #ifdef ZTS
+ # define CG(v) TSRMG(compiler_globals_id, zend_compiler_globals *, v)
+-int zendparse(void *compiler_globals);
+ #else
+ # define CG(v) (compiler_globals.v)
+ extern ZEND_API struct _zend_compiler_globals compiler_globals;
+--- a/ext/wddx/wddx.c	2025-01-07 10:58:37.871771332 +0100
++++ b/ext/wddx/wddx.c	2025-01-07 11:14:04.069871258 +0100
+@@ -467,7 +467,7 @@
+ /* OBJECTS_FIXME */
+ 	zval **ent, *fname, **varname;
+ 	zval *retval = NULL;
+-	const char *key;
++	char *key;
+ 	ulong idx;
+ 	char tmp_buf[WDDX_BUF_LEN];
+ 	HashTable *objhash, *sleephash;
+@@ -536,9 +536,10 @@
+ 			}
+ 
+ 			if (zend_hash_get_current_key_ex(objhash, &key, &key_len, &idx, 0, NULL) == HASH_KEY_IS_STRING) {
+-				const char *class_name, *prop_name;
++				const char *class_name;
++				char *prop_name;
+ 
+-				zend_unmangle_property_name(key, key_len-1, &class_name, &prop_name);
++				zend_unmangle_property_name(key, key_len-1, &class_name, (const char **) &prop_name);
+ 				php_wddx_serialize_var(packet, *ent, prop_name, strlen(prop_name)+1 TSRMLS_CC);
+ 			} else {
+ 				key_len = slprintf(tmp_buf, sizeof(tmp_buf), "%ld", idx);
+--- a/TSRM/TSRM.h	2025-01-07 11:49:05.119324266 +0100
++++ b/TSRM/TSRM.h	2025-01-07 12:18:21.096640563 +0100
+@@ -158,6 +158,8 @@
+ #define TSRM_SHUFFLE_RSRC_ID(rsrc_id)		((rsrc_id)+1)
+ #define TSRM_UNSHUFFLE_RSRC_ID(rsrc_id)		((rsrc_id)-1)
+ 
++extern __thread void ***tsrm_ls;
++
+ #define TSRMLS_FETCH()			void ***tsrm_ls = (void ***) ts_resource_ex(0, NULL)
+ #define TSRMLS_FETCH_FROM_CTX(ctx)	void ***tsrm_ls = (void ***) ctx
+ #define TSRMLS_SET_CTX(ctx)		ctx = (void ***) tsrm_ls

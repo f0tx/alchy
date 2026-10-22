@@ -1,0 +1,120 @@
+OpenSSL 3.x: drop symbols removed in 3.0
+
+OpenSSL 3.0 removed three families of functions the extension still
+references, which only shows up at link time:
+
+ - SSLv2_client_method()/SSLv2_server_method() and the SSLv3 equivalents
+   (SSLv2/SSLv3 support was dropped from the library).
+   Route the php stream crypto constants to the generic TLS_method()/
+   TLS_server_method(); they negotiate the best available version.
+ - RAND_egd() - EGD sockets are gone, so the RAND file loader loses that
+   branch. Kept behind a version check so older OpenSSL still compiles.
+ - EVP_dss1() - DSS1 is plain SHA-1; use EVP_sha1().
+
+--- a/ext/openssl/openssl.c
++++ b/ext/openssl/openssl.c
+@@ -922,12 +922,16 @@
+ 
+ 	if (file == NULL) {
+ 		file = RAND_file_name(buffer, sizeof(buffer));
+-	} else if (RAND_egd(file) > 0) {
++	}
++#if OPENSSL_VERSION_NUMBER < 0x30000000L
++	/* RAND_egd() was removed in OpenSSL 3.0 */
++	else if (RAND_egd(file) > 0) {
+ 		/* if the given filename is an EGD socket, don't
+ 		 * write anything back to it */
+ 		*egdsocket = 1;
+ 		return SUCCESS;
+ 	}
++#endif
+ 	if (file == NULL || !RAND_load_file(file, -1)) {
+ 		if (RAND_status() == 0) {
+ 			php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to load random state; not enough random data!");
+@@ -981,7 +985,12 @@
+ 			break;
+ #endif
+ 		case OPENSSL_ALGO_DSS1:
++#if OPENSSL_VERSION_NUMBER >= 0x30000000L
++			/* EVP_dss1() was removed in OpenSSL 3.0; DSS1 is SHA-1 */
++			mdtype = (EVP_MD *) EVP_sha1();
++#else
+ 			mdtype = (EVP_MD *) EVP_dss1();
++#endif
+ 			break;
+ #if OPENSSL_VERSION_NUMBER >= 0x0090708fL
+ 		case OPENSSL_ALGO_SHA224:
+--- a/ext/openssl/xp_ssl.c
++++ b/ext/openssl/xp_ssl.c
+@@ -29,6 +29,24 @@
+ #include <openssl/x509.h>
+ #include <openssl/err.h>
+ 
++/* OpenSSL 3.0 removed the SSLv2/SSLv3 protocol method functions; the generic
++ * TLS methods negotiate the best version. PHP keeps the old stream constants. */
++#if OPENSSL_VERSION_NUMBER >= 0x30000000L
++# define php_SSLv23_client_method() TLS_method()
++# define php_SSLv23_server_method() TLS_server_method()
++# define php_SSLv2_client_method()  TLS_method()
++# define php_SSLv2_server_method()  TLS_server_method()
++# define php_SSLv3_client_method()  TLS_method()
++# define php_SSLv3_server_method()  TLS_server_method()
++#else
++# define php_SSLv23_client_method() SSLv23_client_method()
++# define php_SSLv23_server_method() SSLv23_server_method()
++# define php_SSLv2_client_method()  SSLv2_client_method()
++# define php_SSLv2_server_method()  SSLv2_server_method()
++# define php_SSLv3_client_method()  SSLv3_client_method()
++# define php_SSLv3_server_method()  SSLv3_server_method()
++#endif
++
+ #ifdef PHP_WIN32
+ #include "win32/time.h"
+ #endif
+@@ -327,7 +345,7 @@
+ 	switch (cparam->inputs.method) {
+ 		case STREAM_CRYPTO_METHOD_SSLv23_CLIENT:
+ 			sslsock->is_client = 1;
+-			method = SSLv23_client_method();
++			method = php_SSLv23_client_method();
+ 			break;
+ 		case STREAM_CRYPTO_METHOD_SSLv2_CLIENT:
+ #ifdef OPENSSL_NO_SSL2
+@@ -335,12 +353,12 @@
+ 			return -1;
+ #else
+ 			sslsock->is_client = 1;
+-			method = SSLv2_client_method();
++			method = php_SSLv2_client_method();
+ 			break;
+ #endif
+ 		case STREAM_CRYPTO_METHOD_SSLv3_CLIENT:
+ 			sslsock->is_client = 1;
+-			method = SSLv3_client_method();
++			method = php_SSLv3_client_method();
+ 			break;
+ 		case STREAM_CRYPTO_METHOD_TLS_CLIENT:
+ 			sslsock->is_client = 1;
+@@ -348,11 +366,11 @@
+ 			break;
+ 		case STREAM_CRYPTO_METHOD_SSLv23_SERVER:
+ 			sslsock->is_client = 0;
+-			method = SSLv23_server_method();
++			method = php_SSLv23_server_method();
+ 			break;
+ 		case STREAM_CRYPTO_METHOD_SSLv3_SERVER:
+ 			sslsock->is_client = 0;
+-			method = SSLv3_server_method();
++			method = php_SSLv3_server_method();
+ 			break;
+ 		case STREAM_CRYPTO_METHOD_SSLv2_SERVER:
+ #ifdef OPENSSL_NO_SSL2
+@@ -360,7 +378,7 @@
+ 			return -1;
+ #else
+ 			sslsock->is_client = 0;
+-			method = SSLv2_server_method();
++			method = php_SSLv2_server_method();
+ 			break;
+ #endif
+ 		case STREAM_CRYPTO_METHOD_TLS_SERVER:

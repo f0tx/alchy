@@ -1,0 +1,392 @@
+Based on the following upstream commits:
+
+https://github.com/php/php-src/commit/8d35a423838eb462cd39ee535c5d003073cc5f22
+https://github.com/php/php-src/commit/d8200e48857aeaf09f7127751efc5632ef7660a7
+https://github.com/php/php-src/commit/9a8e7b571896f39f83cb000fdb7c466b6d328d52
+
+--- a/ext/intl/breakiterator/breakiterator_class.cpp
++++ b/ext/intl/breakiterator/breakiterator_class.cpp
+
+diff -urN a/ext/intl/breakiterator/breakiterator_class.cpp b/ext/intl/breakiterator/breakiterator_class.cpp
+--- a/ext/intl/breakiterator/breakiterator_class.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/breakiterator/breakiterator_class.cpp	2026-10-16 15:18:28.334923122 +0300
+@@ -38,6 +38,7 @@
+ }
+ 
+ using PHP::CodePointBreakIterator;
++using icu::RuleBasedBreakIterator;
+ 
+ /* {{{ Global variables */
+ zend_class_entry *BreakIterator_ce_ptr;
+diff -urN a/ext/intl/breakiterator/breakiterator_class.h b/ext/intl/breakiterator/breakiterator_class.h
+--- a/ext/intl/breakiterator/breakiterator_class.h	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/breakiterator/breakiterator_class.h	2026-10-16 15:18:28.335009977 +0300
+@@ -26,6 +26,8 @@
+ 
+ #ifndef USE_BREAKITERATOR_POINTER
+ typedef void BreakIterator;
++#else
++using icu::BreakIterator;
+ #endif
+ 
+ typedef struct {
+diff -urN a/ext/intl/breakiterator/breakiterator_methods.cpp b/ext/intl/breakiterator/breakiterator_methods.cpp
+--- a/ext/intl/breakiterator/breakiterator_methods.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/breakiterator/breakiterator_methods.cpp	2026-10-16 15:18:28.335074079 +0300
+@@ -32,6 +32,8 @@
+ }
+ 
+ using PHP::CodePointBreakIterator;
++using icu::BreakIterator;
++using icu::Locale;
+ 
+ U_CFUNC PHP_METHOD(BreakIterator, __construct)
+ {
+diff -urN a/ext/intl/breakiterator/codepointiterator_internal.cpp b/ext/intl/breakiterator/codepointiterator_internal.cpp
+--- a/ext/intl/breakiterator/codepointiterator_internal.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/breakiterator/codepointiterator_internal.cpp	2026-10-16 15:18:28.335146172 +0300
+@@ -33,6 +33,8 @@
+ 
+ using namespace PHP;
+ 
++using icu::UCharCharacterIterator;
++
+ UOBJECT_DEFINE_RTTI_IMPLEMENTATION(CodePointBreakIterator);
+ 
+ CodePointBreakIterator::CodePointBreakIterator()
+diff -urN a/ext/intl/breakiterator/codepointiterator_internal.h b/ext/intl/breakiterator/codepointiterator_internal.h
+--- a/ext/intl/breakiterator/codepointiterator_internal.h	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/breakiterator/codepointiterator_internal.h	2026-10-16 15:18:28.335201639 +0300
+@@ -18,8 +18,11 @@
+ #define CODEPOINTITERATOR_INTERNAL_H
+ 
+ #include <unicode/brkiter.h>
++#include <unicode/unistr.h>
+ 
+-using U_ICU_NAMESPACE::BreakIterator;
++using icu::BreakIterator;
++using icu::CharacterIterator;
++using icu::UnicodeString;
+ 
+ namespace PHP {
+ 
+diff -urN a/ext/intl/breakiterator/rulebasedbreakiterator_methods.cpp b/ext/intl/breakiterator/rulebasedbreakiterator_methods.cpp
+--- a/ext/intl/breakiterator/rulebasedbreakiterator_methods.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/breakiterator/rulebasedbreakiterator_methods.cpp	2026-10-16 15:18:28.335259822 +0300
+@@ -26,6 +26,9 @@
+ #include "../intl_convertcpp.h"
+ #include "../intl_common.h"
+ 
++using icu::RuleBasedBreakIterator;
++using icu::Locale;
++
+ static inline RuleBasedBreakIterator *fetch_rbbi(BreakIterator_object *bio) {
+ 	return (RuleBasedBreakIterator*)bio->biter;
+ }
+diff -urN a/ext/intl/calendar/calendar_class.cpp b/ext/intl/calendar/calendar_class.cpp
+--- a/ext/intl/calendar/calendar_class.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/calendar/calendar_class.cpp	2026-10-16 15:18:28.335338066 +0300
+@@ -34,6 +34,9 @@
+ #include <assert.h>
+ }
+ 
++using icu::GregorianCalendar;
++using icu::Locale;
++
+ /* {{{ Global variables */
+ zend_class_entry *Calendar_ce_ptr;
+ zend_class_entry *GregorianCalendar_ce_ptr;
+diff -urN a/ext/intl/calendar/calendar_class.h b/ext/intl/calendar/calendar_class.h
+--- a/ext/intl/calendar/calendar_class.h	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/calendar/calendar_class.h	2026-10-16 15:18:28.335406231 +0300
+@@ -26,6 +26,8 @@
+ 
+ #ifndef USE_CALENDAR_POINTER
+ typedef void Calendar;
++#else
++using icu::Calendar;
+ #endif
+ 
+ typedef struct {
+diff -urN a/ext/intl/calendar/calendar_methods.cpp b/ext/intl/calendar/calendar_methods.cpp
+--- a/ext/intl/calendar/calendar_methods.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/calendar/calendar_methods.cpp	2026-10-16 15:18:28.335491260 +0300
+@@ -40,6 +40,8 @@
+ }
+ #include "../common/common_enum.h"
+ 
++using icu::Locale;
++
+ U_CFUNC PHP_METHOD(IntlCalendar, __construct)
+ {
+ 	zend_throw_exception( NULL,
+diff -urN a/ext/intl/calendar/gregoriancalendar_methods.cpp b/ext/intl/calendar/gregoriancalendar_methods.cpp
+--- a/ext/intl/calendar/gregoriancalendar_methods.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/calendar/gregoriancalendar_methods.cpp	2026-10-16 15:18:28.335599790 +0300
+@@ -23,6 +23,8 @@
+ #include <unicode/locid.h>
+ #include <unicode/calendar.h>
+ #include <unicode/gregocal.h>
++#include <unicode/ustring.h>
++
+ extern "C" {
+ #include "../php_intl.h"
+ #include "../intl_common.h"
+@@ -34,6 +36,11 @@
+ #include "zend_exceptions.h"
+ }
+ 
++using icu::GregorianCalendar;
++using icu::Locale;
++using icu::UnicodeString;
++using icu::StringPiece;
++
+ static inline GregorianCalendar *fetch_greg(Calendar_object *co) {
+ 	return (GregorianCalendar*)co->ucal;
+ }
+diff -urN a/ext/intl/common/common_date.cpp b/ext/intl/common/common_date.cpp
+--- a/ext/intl/common/common_date.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/common/common_date.cpp	2026-10-16 15:18:28.370137433 +0300
+@@ -25,6 +25,9 @@
+ #include <ext/date/php_date.h>
+ }
+ 
++using icu::TimeZone;
++using icu::UnicodeString;
++
+ #include "zend_portability.h"
+ 
+ /* {{{ timezone_convert_datetimezone
+diff -urN a/ext/intl/common/common_date.h b/ext/intl/common/common_date.h
+--- a/ext/intl/common/common_date.h	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/common/common_date.h	2026-10-16 15:18:28.370233587 +0300
+@@ -28,6 +28,8 @@
+ 
+ #include <unicode/timezone.h>
+ 
++using icu::TimeZone;
++
+ U_CFUNC TimeZone *timezone_convert_datetimezone(int type, void *object, int is_datetime, intl_error *outside_error, const char *func);
+ U_CFUNC int intl_datetime_decompose(zval *z, double *millis, TimeZone **tz,
+ 		intl_error *err, const char *func);
+diff -urN a/ext/intl/common/common_enum.h b/ext/intl/common/common_enum.h
+--- a/ext/intl/common/common_enum.h	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/common/common_enum.h	2026-10-16 15:18:28.335834782 +0300
+@@ -75,6 +75,7 @@
+ U_CFUNC void zoi_with_current_invalidate_current(zend_object_iterator *iter);
+ 
+ #ifdef __cplusplus
++using icu::StringEnumeration;
+ U_CFUNC void IntlIterator_from_StringEnumeration(StringEnumeration *se, zval *object);
+ #endif
+ 
+diff -urN a/ext/intl/converter/converter.c b/ext/intl/converter/converter.c
+--- a/ext/intl/converter/converter.c	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/converter/converter.c	2026-10-16 15:18:28.335923382 +0300
+@@ -18,6 +18,8 @@
+ #include "zend_exceptions.h"
+ 
+ #include <unicode/utypes.h>
++#include <unicode/utf8.h>
++#include <unicode/utf16.h>
+ #include <unicode/ucnv.h>
+ #include <unicode/ustring.h>
+ 
+diff -urN a/ext/intl/dateformat/dateformat_format_object.cpp b/ext/intl/dateformat/dateformat_format_object.cpp
+--- a/ext/intl/dateformat/dateformat_format_object.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/dateformat/dateformat_format_object.cpp	2026-10-16 15:18:28.336046978 +0300
+@@ -33,6 +33,12 @@
+ #include "../common/common_date.h"
+ }
+ 
++using icu::Locale;
++using icu::DateFormat;
++using icu::GregorianCalendar;
++using icu::StringPiece;
++using icu::SimpleDateFormat;
++
+ static const DateFormat::EStyle valid_styles[] = {
+ 		DateFormat::kNone,
+ 		DateFormat::kFull,
+diff -urN a/ext/intl/dateformat/dateformat_helpers.cpp b/ext/intl/dateformat/dateformat_helpers.cpp
+--- a/ext/intl/dateformat/dateformat_helpers.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/dateformat/dateformat_helpers.cpp	2026-10-16 15:18:28.336101398 +0300
+@@ -28,6 +28,8 @@
+ #include "../calendar/calendar_class.h"
+ }
+ 
++using icu::GregorianCalendar;
++
+ int datefmt_process_calendar_arg(zval* calendar_zv,
+ 								 Locale const& locale,
+ 								 const char *func_name,
+diff -urN a/ext/intl/dateformat/dateformat_helpers.h b/ext/intl/dateformat/dateformat_helpers.h
+--- a/ext/intl/dateformat/dateformat_helpers.h	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/dateformat/dateformat_helpers.h	2026-10-16 15:18:28.336151401 +0300
+@@ -22,11 +22,16 @@
+ #endif
+ 
+ #include <unicode/calendar.h>
++#include <unicode/datefmt.h>
+ 
+ extern "C" {
+ #include "../php_intl.h"
+ }
+ 
++using icu::Locale;
++using icu::Calendar;
++using icu::DateFormat;
++
+ int datefmt_process_calendar_arg(zval* calendar_zv,
+ 								 Locale const& locale,
+ 								 const char *func_name,
+diff -urN a/ext/intl/grapheme/grapheme_string.c b/ext/intl/grapheme/grapheme_string.c
+--- a/ext/intl/grapheme/grapheme_string.c	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/grapheme/grapheme_string.c	2026-10-16 15:18:28.336228410 +0300
+@@ -24,6 +24,7 @@
+ #include "grapheme_util.h"
+ 
+ #include <unicode/utypes.h>
++#include <unicode/utf8.h>
+ #include <unicode/ucol.h>
+ #include <unicode/ustring.h>
+ #include <unicode/ubrk.h>
+@@ -834,10 +835,10 @@
+ 	pstr = str + start;
+ 
+ 	/* just in case pstr points in the middle of a character, move forward to the start of the next char */
+-	if ( !UTF8_IS_SINGLE(*pstr) && !U8_IS_LEAD(*pstr) ) {
++	if ( !U8_IS_SINGLE(*pstr) && !U8_IS_LEAD(*pstr) ) {
+ 		char *str_end = str + str_len;
+ 
+-		while ( !UTF8_IS_SINGLE(*pstr) && !U8_IS_LEAD(*pstr) ) {
++		while ( !U8_IS_SINGLE(*pstr) && !U8_IS_LEAD(*pstr) ) {
+ 			pstr++;
+ 			if ( pstr >= str_end ) {
+ 				intl_error_set( NULL, U_ILLEGAL_ARGUMENT_ERROR,
+diff -urN a/ext/intl/intl_convertcpp.h b/ext/intl/intl_convertcpp.h
+--- a/ext/intl/intl_convertcpp.h	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/intl_convertcpp.h	2026-10-16 15:18:28.336302389 +0300
+@@ -26,6 +26,8 @@
+ #include <unicode/unistr.h>
+ #include <zend_types.h>
+ 
++using icu::UnicodeString;
++
+ int intl_stringFromChar(UnicodeString &ret, char *str, size_t str_len, UErrorCode *status);
+ 
+ zend_string* intl_charFromString(const UnicodeString &from, UErrorCode *status);
+diff -urN a/ext/intl/msgformat/msgformat_helpers.cpp b/ext/intl/msgformat/msgformat_helpers.cpp
+--- a/ext/intl/msgformat/msgformat_helpers.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/msgformat/msgformat_helpers.cpp	2026-10-16 15:18:28.336392464 +0300
+@@ -78,6 +78,16 @@
+ #endif
+ U_NAMESPACE_END
+ 
++using icu::Formattable;
++using icu::Format;
++using icu::DateFormat;
++using icu::MessageFormat;
++#ifdef HAS_MESSAGE_PATTERN
++using icu::MessagePattern;
++#endif
++using icu::MessageFormatAdapter;
++using icu::FieldPosition;
++
+ U_CFUNC int32_t umsg_format_arg_count(UMessageFormat *fmt)
+ {
+ 	int32_t fmt_count = 0;
+@@ -229,15 +239,16 @@
+ 					UnicodeString typeString = mp.getSubstring(type_part);
+ 					/* This is all based on the rules in the docs for MessageFormat
+ 					 * @see http://icu-project.org/apiref/icu4c/classMessageFormat.html */
+-					if (typeString == "number") {
++#define ASCII_LITERAL(s) UNICODE_STRING(s, sizeof(s)-1)
++					if (typeString == ASCII_LITERAL("number")) {
+ 						MessagePattern::Part style_part = mp.getPart(i + 1); /* Not advancing i */
+ 						if (style_part.getType() == UMSGPAT_PART_TYPE_ARG_STYLE) {
+ 							UnicodeString styleString = mp.getSubstring(style_part);
+-							if (styleString == "integer") {
++							if (styleString == ASCII_LITERAL("integer")) {
+ 								type = Formattable::kInt64;
+-							} else if (styleString == "currency") {
++							} else if (styleString == ASCII_LITERAL("currency")) {
+ 								type = Formattable::kDouble;
+-							} else if (styleString == "percent") {
++							} else if (styleString == ASCII_LITERAL("percent")) {
+ 								type = Formattable::kDouble;
+ 							} else { /* some style invalid/unknown to us */
+ 								type = Formattable::kDouble;
+@@ -245,12 +256,13 @@
+ 						} else { // if missing style, part, make it a double
+ 							type = Formattable::kDouble;
+ 						}
+-					} else if ((typeString == "date") || (typeString == "time")) {
++					} else if ((typeString == ASCII_LITERAL("date")) || (typeString == ASCII_LITERAL("time"))) {
+ 						type = Formattable::kDate;
+-					} else if ((typeString == "spellout") || (typeString == "ordinal")
+-							|| (typeString == "duration")) {
++					} else if ((typeString == ASCII_LITERAL("spellout")) || (typeString == ASCII_LITERAL("ordinal"))
++							|| (typeString == ASCII_LITERAL("duration"))) {
+ 						type = Formattable::kDouble;
+ 					}
++#undef ASCII_LITERAL
+ 				} else {
+ 					/* If there's no UMSGPAT_PART_TYPE_ARG_TYPE right after a
+ 					 * UMSGPAT_ARG_TYPE_SIMPLE argument, then the pattern
+diff -urN a/ext/intl/normalizer/normalizer_normalize.c b/ext/intl/normalizer/normalizer_normalize.c
+--- a/ext/intl/normalizer/normalizer_normalize.c	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/normalizer/normalizer_normalize.c	2026-10-16 15:18:28.336485015 +0300
+@@ -24,6 +24,7 @@
+ #include "normalizer_class.h"
+ #include "normalizer_normalize.h"
+ #include "intl_convert.h"
++#include <unicode/utf8.h>
+ 
+ /* {{{ proto string Normalizer::normalize( string $input [, string $form = FORM_C] )
+  * Normalize a string. }}} */
+diff -urN a/ext/intl/timezone/timezone_class.cpp b/ext/intl/timezone/timezone_class.cpp
+--- a/ext/intl/timezone/timezone_class.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/timezone/timezone_class.cpp	2026-10-16 15:18:28.336553313 +0300
+@@ -37,6 +37,8 @@
+ #include <ext/date/php_date.h>
+ }
+ 
++using icu::Calendar;
++
+ /* {{{ Global variables */
+ U_CDECL_BEGIN
+ zend_class_entry *TimeZone_ce_ptr = NULL;
+diff -urN a/ext/intl/timezone/timezone_class.h b/ext/intl/timezone/timezone_class.h
+--- a/ext/intl/timezone/timezone_class.h	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/timezone/timezone_class.h	2026-10-16 15:18:28.336616860 +0300
+@@ -29,6 +29,8 @@
+ 
+ #ifndef USE_TIMEZONE_POINTER
+ typedef void TimeZone;
++#else
++using icu::TimeZone;
+ #endif
+ 
+ typedef struct {
+diff -urN a/ext/intl/timezone/timezone_methods.cpp b/ext/intl/timezone/timezone_methods.cpp
+--- a/ext/intl/timezone/timezone_methods.cpp	2020-09-30 08:15:54.000000000 +0300
++++ b/ext/intl/timezone/timezone_methods.cpp	2026-10-16 15:18:28.336684812 +0300
+@@ -23,6 +23,7 @@
+ #include <unicode/locid.h>
+ #include <unicode/timezone.h>
+ #include <unicode/ustring.h>
++#include <unicode/calendar.h>
+ #include "intl_convertcpp.h"
+ 
+ #include "../common/common_date.h"
+@@ -37,6 +38,9 @@
+ }
+ #include "common/common_enum.h"
+ 
++using icu::Locale;
++using icu::Calendar;
++
+ U_CFUNC PHP_METHOD(IntlTimeZone, __construct)
+ {
+ 	zend_throw_exception( NULL,

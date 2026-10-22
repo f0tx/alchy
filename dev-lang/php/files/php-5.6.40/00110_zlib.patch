@@ -1,0 +1,11 @@
+--- a/ext/zlib/zlib.c.old	2024-12-26 17:48:13.993451425 +0100
++++ b/ext/zlib/zlib.c	2024-12-26 18:02:20.177307104 +0100
+@@ -1032,7 +1032,7 @@
+ 	PHP_MINFO(zlib),
+ 	"2.0",
+ 	PHP_MODULE_GLOBALS(zlib),
+-	ZEND_MODULE_GLOBALS_CTOR_N(zlib),
++	PHP_GINIT(zlib),
+ 	NULL,
+ 	NULL,
+ 	STANDARD_MODULE_PROPERTIES_EX
