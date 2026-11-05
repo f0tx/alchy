@@ -1,0 +1,189 @@
+--- a/cmake/ssl.cmake	2026-06-30 18:11:51.000000000 +0200
++++ b/cmake/ssl.cmake	2026-11-04 09:46:03.992527156 +0100
+@@ -151,8 +151,8 @@
+       ${version_part} "${${version_part}}")
+   ENDFOREACH()
+   SET(OPENSSL_VERSION_MAJOR ${OPENSSL_VERSION_MAJOR} CACHE INTERNAL "" FORCE)
+-  IF(OPENSSL_VERSION_MAJOR VERSION_EQUAL 3)
+-    # OpenSSL 3
++  IF(OPENSSL_VERSION_MAJOR VERSION_GREATER_EQUAL 3)
++    # OpenSSL >= 3
+     SET(OPENSSL_FIX_VERSION "${OPENSSL_VERSION_PATCH}")
+   ELSE()
+     # Verify version number. Version information looks like:
+--- a/storage/ndb/src/common/util/NodeCertificate.cpp	2026-06-30 18:11:51.000000000 +0200
++++ b/storage/ndb/src/common/util/NodeCertificate.cpp	2026-11-04 09:52:21.928041806 +0100
+@@ -476,7 +476,7 @@
+   /* Set the subject common name */
+   char cn[CN_max_length];
+   print_name(cn, CN_max_length);
+-  set_common_name(X509_REQ_get_subject_name(m_req), cn);
++  set_common_name(const_cast<X509_NAME *>(X509_REQ_get_subject_name(m_req)), cn);
+ 
+   /* Set the subject alt names extension */
+   if (bound_hostnames()) {
+@@ -561,7 +561,7 @@
+   if (!cert) return nullptr;
+ 
+   /* Copy name from csr to cert */
+-  X509_NAME *name = X509_REQ_get_subject_name(m_req);
++  const X509_NAME *name = X509_REQ_get_subject_name(m_req);
+   if (X509_set_subject_name(cert, name) != 1) return nullptr;
+ 
+   /* Set serial number in x509 */
+@@ -581,8 +581,8 @@
+ 
+ bool SigningRequest::parse_name() {
+   if (m_req == nullptr) return false;
+-  X509_NAME *name = X509_REQ_get_subject_name(m_req);
+-  return CertSubject::parse_name(name);
++  const X509_NAME *name = X509_REQ_get_subject_name(m_req);
++  return CertSubject::parse_name(const_cast<X509_NAME *>(name));
+ }
+ 
+ /*
+@@ -604,8 +604,10 @@
+ 
+ int SerialNumber::print(char *buf, int len, const ASN1_STRING *serial) {
+   int offset = 0;
+-  for (int i = 0; i < serial->length && offset < (len - 4); i++)
+-    offset += sprintf(buf + offset, "%02X:", serial->data[i]);
++  int serial_len = ASN1_STRING_length(serial);
++  const unsigned char *serial_data = ASN1_STRING_get0_data(serial);
++  for (int i = 0; i < serial_len && offset < (len - 4); i++)
++    offset += sprintf(buf + offset, "%02X:", serial_data[i]);
+   if (offset) buf[offset - 1] = '\0';
+   return offset;
+ }
+@@ -615,8 +617,10 @@
+ SerialNumber::HexString::HexString(const ASN1_STRING *serial) {
+   buf.append("0x");
+   int truncated [[maybe_unused]] = 0;
+-  for (int i = 0; i < serial->length; i++)
+-    truncated = buf.appendf("%02x", serial->data[i]);
++  int serial_len = ASN1_STRING_length(serial);
++  const unsigned char *serial_data = ASN1_STRING_get0_data(serial);
++  for (int i = 0; i < serial_len; i++)
++    truncated = buf.appendf("%02x", serial_data[i]);
+   assert(!truncated);
+ }
+ 
+@@ -641,7 +645,7 @@
+ }
+ 
+ int Certificate::set_common_name(X509 *cert, const char *CN) {
+-  X509_NAME *name = X509_get_subject_name(cert);
++  X509_NAME *name = const_cast<X509_NAME *>(X509_get_subject_name(cert));
+   return CertSubject::set_common_name(name, CN);
+ }
+ 
+@@ -655,8 +659,9 @@
+   const ASN1_BIT_STRING *sig = nullptr;
+   const X509_ALGOR *algorithm;
+   X509_get0_signature(&sig, &algorithm, cert);
+-  if (sig && sig->data)
+-    prefix = (sig->data[0] << 16) | (sig->data[1] << 8) | sig->data[2];
++  const unsigned char *sig_data = sig ? ASN1_STRING_get0_data(sig) : nullptr;
++  if (sig_data)
++    prefix = (sig_data[0] << 16) | (sig_data[1] << 8) | sig_data[2];
+   return prefix;
+ }
+ 
+@@ -769,7 +774,7 @@
+   if (r1 == 0) return false;
+ 
+   /* Set subject name */
+-  X509_NAME *name = X509_get_subject_name(cert);
++  X509_NAME *name = const_cast<X509_NAME *>(X509_get_subject_name(cert));
+   r1 = X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, subject, -1, -1, 0);
+   if (r1 == 0) return false;
+ 
+@@ -906,8 +911,9 @@
+       ASN1_STRING *str =
+           static_cast<ASN1_STRING *>(GENERAL_NAME_get0_value(name, &name_type));
+       if (name_type == GEN_DNS) {
+-        if (str->length < size) size = str->length;
+-        memcpy(buffer, str->data, size);
++        int str_len = ASN1_STRING_length(str);
++        if (str_len < size) size = str_len;
++        memcpy(buffer, ASN1_STRING_get0_data(str), size);
+         buffer[size] = '\0';
+         nwritten = size;
+       }
+@@ -928,8 +934,8 @@
+     ASN1_STRING *str =
+         static_cast<ASN1_STRING *>(GENERAL_NAME_get0_value(name, &name_type));
+     if (name_type == GEN_DNS) {
+-      if ((str->length == 9) &&
+-          (strncmp("localhost", (const char *)str->data, 9) == 0))
++      if ((ASN1_STRING_length(str) == 9) &&
++          (strncmp("localhost", (const char *)ASN1_STRING_get0_data(str), 9) == 0))
+         return true;
+     }
+   }
+@@ -1006,21 +1012,23 @@
+ bool CertSubject::parse_name(X509_NAME *name) {
+   int idx = X509_NAME_get_index_by_NID(name, NID_commonName, -1);
+   if (idx < 0) return false;
+-  X509_NAME_ENTRY *cn = X509_NAME_get_entry(name, idx);
++  const X509_NAME_ENTRY *cn = X509_NAME_get_entry(name, idx);
+   if (cn == nullptr) return false;
+-  ASN1_STRING *str = X509_NAME_ENTRY_get_data(cn);
++  const ASN1_STRING *str = X509_NAME_ENTRY_get_data(cn);
+   return parse_name(str);
+ }
+ 
+ bool CertSubject::parse_name(const ASN1_STRING *str) {
+   if (str == nullptr) return false;
+-  if (str->length == 0) return false;
++  int str_len = ASN1_STRING_length(str);
++  const unsigned char *str_data = ASN1_STRING_get0_data(str);
++  if (str_len == 0) return false;
+ 
+   int p = 0;  // cursor into name
+-  auto atEnd = [&]() { return (str->length == p); };
+-  auto data = [&]() { return (char *)(str->data) + p; };
++  auto atEnd = [&]() { return (str_len == p); };
++  auto data = [&]() { return (char *)(str_data) + p; };
+   auto find = [&](const char *a, size_t l) {
+-    if (str->length <= p) return false;
++    if (str_len <= p) return false;
+     int r = strncmp(data(), a, l);
+     if (r == 0) {
+       p += l;
+@@ -1361,12 +1369,12 @@
+ 
+ bool NodeCertificate::parse_name() {
+   if (m_x509 == nullptr) return false;
+-  X509_NAME *name = X509_get_subject_name(m_x509);
++  const X509_NAME *name = X509_get_subject_name(m_x509);
+   int idx = X509_NAME_get_index_by_NID(name, NID_commonName, -1);
+   if (idx < 0) return false;
+-  X509_NAME_ENTRY *cn = X509_NAME_get_entry(name, idx);
++  const X509_NAME_ENTRY *cn = X509_NAME_get_entry(name, idx);
+   if (cn == nullptr) return false;
+-  ASN1_STRING *str = X509_NAME_ENTRY_get_data(cn);
++  const ASN1_STRING *str = X509_NAME_ENTRY_get_data(cn);
+   return CertSubject::parse_name(str);
+ }
+ 
+--- a/sql/auth/sql_authentication.cc	2026-06-30 18:11:51.000000000 +0200
++++ b/sql/auth/sql_authentication.cc	2026-11-04 09:53:15.896114876 +0100
+@@ -5262,7 +5262,7 @@
+     X509 *x509 = X509_new();
+     X509_EXTENSION *ext = nullptr;
+     X509V3_CTX v3ctx;
+-    X509_NAME *name = nullptr;
++    const X509_NAME *name = nullptr;
+ 
+     assert(cn.length() <= MAX_CN_NAME_LENGTH);
+     assert(serial != 0);
+@@ -5287,7 +5287,7 @@
+     name = X509_get_subject_name(x509);
+     if (!name) goto err;
+ 
+-    if (!X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
++    if (!X509_NAME_add_entry_by_txt(const_cast<X509_NAME *>(name), "CN", MBSTRING_ASC,
+                                     (const unsigned char *)cn.c_str(), -1, -1,
+                                     0))
+       goto err;
