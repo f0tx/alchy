@@ -1,0 +1,151 @@
+libcurl >= 7.55 deprecated the numeric CURLINFO_* ids (php-5.4)
+
+CURLINFO_(TOTAL|NAMELOOKUP|CONNECT|PRETRANSFER|STARTTRANSFER|REDIRECT)_TIME,
+CURLINFO_(SIZE|SPEED)_(UP|DOWN)LOAD, CURLINFO_CONTENT_LENGTH_(UP|DOWN)LOAD and
+CURLINFO_FILETIME fill a long/double and are deprecated in favour of the
+curl_off_t based *_T ids.
+
+Map the PHP constant names onto the modern ids and collect the values into a
+curl_off_t, so curl_getinfo() keeps returning double/long without
+-Wdeprecated-declarations noise.  Guarded with LIBCURL_VERSION_NUM, older
+libcurl still builds.
+
+Patch against upstream php-5.4.45 sources.
+
+--- a/ext/curl/interface.c
++++ b/ext/curl/interface.c
+@@ -153,6 +153,39 @@
+ 
+ #define SAVE_CURL_ERROR(__handle, __err) (__handle)->err.no = (int) __err;
+ 
++/* libcurl 7.55 deprecated the numeric CURLINFO_* ids that store the result in
++ * a long/double in favour of the curl_off_t based *_T ids.  Keep the PHP
++ * constant names -- they are part of the extension's API -- but point them at
++ * the modern ids, so building against libcurl >= 7.55 is warning free. */
++#if LIBCURL_VERSION_NUM >= 0x073700 /* 7.55.0 */
++# undef CURLINFO_FILETIME
++# undef CURLINFO_TOTAL_TIME
++# undef CURLINFO_NAMELOOKUP_TIME
++# undef CURLINFO_CONNECT_TIME
++# undef CURLINFO_PRETRANSFER_TIME
++# undef CURLINFO_SIZE_UPLOAD
++# undef CURLINFO_SIZE_DOWNLOAD
++# undef CURLINFO_SPEED_DOWNLOAD
++# undef CURLINFO_SPEED_UPLOAD
++# undef CURLINFO_CONTENT_LENGTH_DOWNLOAD
++# undef CURLINFO_CONTENT_LENGTH_UPLOAD
++# undef CURLINFO_STARTTRANSFER_TIME
++# undef CURLINFO_REDIRECT_TIME
++# define CURLINFO_FILETIME                 CURLINFO_FILETIME_T
++# define CURLINFO_TOTAL_TIME               CURLINFO_TOTAL_TIME_T
++# define CURLINFO_NAMELOOKUP_TIME          CURLINFO_NAMELOOKUP_TIME_T
++# define CURLINFO_CONNECT_TIME             CURLINFO_CONNECT_TIME_T
++# define CURLINFO_PRETRANSFER_TIME         CURLINFO_PRETRANSFER_TIME_T
++# define CURLINFO_SIZE_UPLOAD              CURLINFO_SIZE_UPLOAD_T
++# define CURLINFO_SIZE_DOWNLOAD            CURLINFO_SIZE_DOWNLOAD_T
++# define CURLINFO_SPEED_DOWNLOAD           CURLINFO_SPEED_DOWNLOAD_T
++# define CURLINFO_SPEED_UPLOAD             CURLINFO_SPEED_UPLOAD_T
++# define CURLINFO_CONTENT_LENGTH_DOWNLOAD  CURLINFO_CONTENT_LENGTH_DOWNLOAD_T
++# define CURLINFO_CONTENT_LENGTH_UPLOAD    CURLINFO_CONTENT_LENGTH_UPLOAD_T
++# define CURLINFO_STARTTRANSFER_TIME       CURLINFO_STARTTRANSFER_TIME_T
++# define CURLINFO_REDIRECT_TIME            CURLINFO_REDIRECT_TIME_T
++#endif
++
+ #define CAAL(s, v) add_assoc_long_ex(return_value, s, sizeof(s), (long) v);
+ #define CAAD(s, v) add_assoc_double_ex(return_value, s, sizeof(s), (double) v);
+ #define CAAS(s, v) add_assoc_string_ex(return_value, s, sizeof(s), (char *) (v ? v : ""), 1);
+@@ -2402,7 +2435,11 @@
+ 	if (ZEND_NUM_ARGS() < 2) {
+ 		char   *s_code;
+ 		long    l_code;
+-		double  d_code;
++#if LIBCURL_VERSION_NUM >= 0x073700 /* 7.55.0 */
++		curl_off_t o_code;
++#else
++		double  o_code;
++#endif
+ #if LIBCURL_VERSION_NUM >  0x071301
+ 		struct curl_certinfo *ci = NULL;
+ 		zval *listcode;
+@@ -2441,41 +2478,41 @@
+ 		if (curl_easy_getinfo(ch->cp, CURLINFO_REDIRECT_COUNT, &l_code) == CURLE_OK) {
+ 			CAAL("redirect_count", l_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_TOTAL_TIME, &d_code) == CURLE_OK) {
+-			CAAD("total_time", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_TOTAL_TIME, &o_code) == CURLE_OK) {
++			CAAD("total_time", o_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_NAMELOOKUP_TIME, &d_code) == CURLE_OK) {
+-			CAAD("namelookup_time", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_NAMELOOKUP_TIME, &o_code) == CURLE_OK) {
++			CAAD("namelookup_time", o_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_CONNECT_TIME, &d_code) == CURLE_OK) {
+-			CAAD("connect_time", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_CONNECT_TIME, &o_code) == CURLE_OK) {
++			CAAD("connect_time", o_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_PRETRANSFER_TIME, &d_code) == CURLE_OK) {
+-			CAAD("pretransfer_time", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_PRETRANSFER_TIME, &o_code) == CURLE_OK) {
++			CAAD("pretransfer_time", o_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_SIZE_UPLOAD, &d_code) == CURLE_OK) {
+-			CAAD("size_upload", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_SIZE_UPLOAD, &o_code) == CURLE_OK) {
++			CAAD("size_upload", o_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_SIZE_DOWNLOAD, &d_code) == CURLE_OK) {
+-			CAAD("size_download", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_SIZE_DOWNLOAD, &o_code) == CURLE_OK) {
++			CAAD("size_download", o_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_SPEED_DOWNLOAD, &d_code) == CURLE_OK) {
+-			CAAD("speed_download", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_SPEED_DOWNLOAD, &o_code) == CURLE_OK) {
++			CAAD("speed_download", o_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_SPEED_UPLOAD, &d_code) == CURLE_OK) {
+-			CAAD("speed_upload", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_SPEED_UPLOAD, &o_code) == CURLE_OK) {
++			CAAD("speed_upload", o_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &d_code) == CURLE_OK) {
+-			CAAD("download_content_length", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &o_code) == CURLE_OK) {
++			CAAD("download_content_length", o_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_CONTENT_LENGTH_UPLOAD, &d_code) == CURLE_OK) {
+-			CAAD("upload_content_length", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_CONTENT_LENGTH_UPLOAD, &o_code) == CURLE_OK) {
++			CAAD("upload_content_length", o_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_STARTTRANSFER_TIME, &d_code) == CURLE_OK) {
+-			CAAD("starttransfer_time", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_STARTTRANSFER_TIME, &o_code) == CURLE_OK) {
++			CAAD("starttransfer_time", o_code);
+ 		}
+-		if (curl_easy_getinfo(ch->cp, CURLINFO_REDIRECT_TIME, &d_code) == CURLE_OK) {
+-			CAAD("redirect_time", d_code);
++		if (curl_easy_getinfo(ch->cp, CURLINFO_REDIRECT_TIME, &o_code) == CURLE_OK) {
++			CAAD("redirect_time", o_code);
+ 		}
+ #if LIBCURL_VERSION_NUM > 0x071301
+ 		if (curl_easy_getinfo(ch->cp, CURLINFO_CERTINFO, &ci) == CURLE_OK) {
+@@ -2567,10 +2604,14 @@
+ 			case CURLINFO_CONTENT_LENGTH_UPLOAD:
+ 			case CURLINFO_STARTTRANSFER_TIME:
+ 			case CURLINFO_REDIRECT_TIME: {
++#if LIBCURL_VERSION_NUM >= 0x073700 /* 7.55.0 */
++				curl_off_t code = 0;
++#else
+ 				double code = 0.0;
++#endif
+ 
+ 				if (curl_easy_getinfo(ch->cp, option, &code) == CURLE_OK) {
+-					RETURN_DOUBLE(code);
++					RETURN_DOUBLE((double) code);
+ 				} else {
+ 					RETURN_FALSE;
+ 				}

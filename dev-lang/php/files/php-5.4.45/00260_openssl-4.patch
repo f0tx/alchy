@@ -1,0 +1,175 @@
+OpenSSL 4.1 support for ext/openssl (php-5.4)
+
+OpenSSL 4.1 made ASN1_STRING opaque (str->data / str->length no longer
+compile), removed ASN1_STRING_data() and deprecated ASN1_STRING_length().
+The version specific SSL methods are gone as well and the ones that remain
+return const SSL_METHOD *.
+
+ - str->data / ASN1_STRING_data(x)       -> ASN1_STRING_get0_data(x)
+ - str->length / ASN1_STRING_length(x)   -> ASN1_STRING_get_length(x)
+ - TLSv1_client_method()/server_method() -> TLS_method()/TLS_server_method()
+ - SSL_METHOD *method                    -> const SSL_METHOD *method
+
+The accessors go through php_ASN1_STRING_* macros, so the code still builds
+against OpenSSL 3.x.
+
+Patch against upstream php-5.4.45 sources, on top of 00210/00230/00250.
+
+--- a/ext/openssl/openssl.c
++++ b/ext/openssl/openssl.c
+@@ -59,6 +59,16 @@
+ # endif
+ #endif
+ 
++/* OpenSSL 4.1 made ASN1_STRING opaque, dropped ASN1_STRING_data() and
++ * deprecated ASN1_STRING_length(); go through the accessors instead */
++#if OPENSSL_VERSION_NUMBER >= 0x40100000L
++# define php_ASN1_STRING_data(s)   ASN1_STRING_get0_data(s)
++# define php_ASN1_STRING_length(s) ((int)ASN1_STRING_get_length(s))
++#else
++# define php_ASN1_STRING_data(s)   ASN1_STRING_data(s)
++# define php_ASN1_STRING_length(s) ASN1_STRING_length(s)
++#endif
++
+ /* Common */
+ #include <time.h>
+ 
+@@ -608,8 +618,8 @@
+ 		if (ASN1_STRING_type(str) != V_ASN1_UTF8STRING) {
+ 			to_add_len = ASN1_STRING_to_UTF8(&to_add, str);
+ 		} else {
+-			to_add = ASN1_STRING_data(str);
+-			to_add_len = ASN1_STRING_length(str);
++			to_add = (unsigned char *)php_ASN1_STRING_data(str);
++			to_add_len = php_ASN1_STRING_length(str);
+ 		}
+ 
+ 		if (to_add_len != -1) {
+@@ -637,7 +647,7 @@
+ 
+ static void add_assoc_asn1_string(zval * val, char * key, ASN1_STRING * str) /* {{{ */
+ {
+-	add_assoc_stringl(val, key, (char *)str->data, str->length, 1);
++	add_assoc_stringl(val, key, (char *)php_ASN1_STRING_data(str), php_ASN1_STRING_length(str), 1);
+ }
+ /* }}} */
+ 
+@@ -661,28 +671,28 @@
+ 		return (time_t)-1;
+ 	}
+ 
+-	if (ASN1_STRING_length(timestr) != strlen((char *)ASN1_STRING_data(timestr))) {
++	if (php_ASN1_STRING_length(timestr) != (int)strlen((char *)php_ASN1_STRING_data(timestr))) {
+ 		php_error_docref(NULL TSRMLS_CC, E_WARNING, "illegal length in timestamp");
+ 		return (time_t)-1;
+ 	}
+ 
+-	if (ASN1_STRING_length(timestr) < 13) {
+-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to parse time string %s correctly", timestr->data);
++	if (php_ASN1_STRING_length(timestr) < 13) {
++		php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to parse time string %s correctly", (char *)php_ASN1_STRING_data(timestr));
+ 		return (time_t)-1;
+ 	}
+ 
+-	if (ASN1_STRING_type(timestr) == V_ASN1_GENERALIZEDTIME && ASN1_STRING_length(timestr) < 15) {
+-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to parse time string %s correctly", timestr->data);
++	if (ASN1_STRING_type(timestr) == V_ASN1_GENERALIZEDTIME && php_ASN1_STRING_length(timestr) < 15) {
++		php_error_docref(NULL TSRMLS_CC, E_WARNING, "unable to parse time string %s correctly", (char *)php_ASN1_STRING_data(timestr));
+ 		return (time_t)-1;
+ 	}
+ 
+-	strbuf = estrdup((char *)ASN1_STRING_data(timestr));
++	strbuf = estrdup((char *)php_ASN1_STRING_data(timestr));
+ 
+ 	memset(&thetime, 0, sizeof(thetime));
+ 
+ 	/* we work backwards so that we can use atoi more easily */
+ 
+-	thestr = strbuf + ASN1_STRING_length(timestr) - 3;
++	thestr = strbuf + php_ASN1_STRING_length(timestr) - 3;
+ 
+ 	thetime.tm_sec = atoi(thestr);
+ 	*thestr = '\0';
+@@ -1455,7 +1465,7 @@
+ 		const ASN1_OCTET_STRING *ext_data = X509_EXTENSION_get_data(extension);
+ 
+ 		p = ASN1_STRING_get0_data(ext_data);
+-		length = ASN1_STRING_length(ext_data);
++		length = php_ASN1_STRING_length(ext_data);
+ 	}
+ 	if (method->it) {
+ 		names = (GENERAL_NAMES*)(ASN1_item_d2i(NULL, &p, length,
+@@ -1476,20 +1486,20 @@
+ 				case GEN_EMAIL:
+ 					BIO_puts(bio, "email:");
+ 					as = name->d.rfc822Name;
+-					BIO_write(bio, ASN1_STRING_data(as),
+-						  ASN1_STRING_length(as));
++					BIO_write(bio, php_ASN1_STRING_data(as),
++						  php_ASN1_STRING_length(as));
+ 					break;
+ 				case GEN_DNS:
+ 					BIO_puts(bio, "DNS:");
+ 					as = name->d.dNSName;
+-					BIO_write(bio, ASN1_STRING_data(as),
+-						  ASN1_STRING_length(as));
++					BIO_write(bio, php_ASN1_STRING_data(as),
++						  php_ASN1_STRING_length(as));
+ 					break;
+ 				case GEN_URI:
+ 					BIO_puts(bio, "URI:");
+ 					as = name->d.uniformResourceIdentifier;
+-					BIO_write(bio, ASN1_STRING_data(as),
+-						  ASN1_STRING_length(as));
++					BIO_write(bio, php_ASN1_STRING_data(as),
++						  php_ASN1_STRING_length(as));
+ 					break;
+ 				default:
+ 					/* use builtin print for GEN_OTHERNAME, GEN_X400,
+--- a/ext/openssl/xp_ssl.c
++++ b/ext/openssl/xp_ssl.c
+@@ -38,6 +38,8 @@
+ # define php_SSLv2_server_method()  TLS_server_method()
+ # define php_SSLv3_client_method()  TLS_method()
+ # define php_SSLv3_server_method()  TLS_server_method()
++# define php_TLSv1_client_method()  TLS_method()
++# define php_TLSv1_server_method()  TLS_server_method()
+ #else
+ # define php_SSLv23_client_method() SSLv23_client_method()
+ # define php_SSLv23_server_method() SSLv23_server_method()
+@@ -45,6 +47,8 @@
+ # define php_SSLv2_server_method()  SSLv2_server_method()
+ # define php_SSLv3_client_method()  SSLv3_client_method()
+ # define php_SSLv3_server_method()  SSLv3_server_method()
++# define php_TLSv1_client_method()  TLSv1_client_method()
++# define php_TLSv1_server_method()  TLSv1_server_method()
+ #endif
+ 
+ #ifdef PHP_WIN32
+@@ -327,7 +331,7 @@
+ 		php_stream_xport_crypto_param *cparam
+ 		TSRMLS_DC)
+ {
+-	SSL_METHOD *method;
++	const SSL_METHOD *method;
+ 	long ssl_ctx_options = SSL_OP_ALL;
+ 	
+ 	if (sslsock->ssl_handle) {
+@@ -362,7 +366,7 @@
+ 			break;
+ 		case STREAM_CRYPTO_METHOD_TLS_CLIENT:
+ 			sslsock->is_client = 1;
+-			method = TLSv1_client_method();
++			method = php_TLSv1_client_method();
+ 			break;
+ 		case STREAM_CRYPTO_METHOD_SSLv23_SERVER:
+ 			sslsock->is_client = 0;
+@@ -383,7 +387,7 @@
+ #endif
+ 		case STREAM_CRYPTO_METHOD_TLS_SERVER:
+ 			sslsock->is_client = 0;
+-			method = TLSv1_server_method();
++			method = php_TLSv1_server_method();
+ 			break;
+ 		default:
+ 			return -1;
