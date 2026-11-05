@@ -35,8 +35,9 @@ BDEPEND="
 PATCHES=(
 	# Enable shared libs (bug #583398)
 	"${FILESDIR}/${PN}-2.8.130-shared_libs.patch"
-	# use XSI-compliant version of strerror_r() on musl
-	"${FILESDIR}/${PN}-2.8.130-musl-strerror_r.patch"
+	# musl-strerror_r.patch dropped (bug #985654): it only flips preprocessor
+	# branches on !__GLIBC__, so it is a no-op on glibc; upstream 2.8.146 has
+	# the same conditions built in and the patch no longer applies there.
 	# OpenSSL 4 made X509_NAME/X509_NAME_ENTRY/ASN1_STRING accessors return
 	# const pointers: keep subj/name const so the C++ build stops failing
 	"${FILESDIR}/${PN}-2.8.130-openssl4-const.patch"
