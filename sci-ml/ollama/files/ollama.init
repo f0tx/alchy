@@ -1,0 +1,21 @@
+#!/sbin/openrc-run
+# Copyright 1999-2025 Gentoo Authors
+# Distributed under the terms of the GNU General Public License, v2
+
+supervisor=supervise-daemon
+description="Ollama Service"
+command="/usr/bin/ollama"
+command_args="serve"
+command_user="${OLLAMA_USER:-ollama}:${OLLAMA_USER:-ollama}"
+
+start_pre() {
+	# openrc sources /etc/conf.d/ollama, but the variables must also reach the
+	# daemon's environment; everything here is optional with a sane default.
+	export OLLAMA_HOST OLLAMA_MODELS OLLAMA_KEEP_ALIVE OLLAMA_NUM_PARALLEL \
+		OLLAMA_LLM_LIBRARY OLLAMA_FLASH_ATTENTION OLLAMA_MAX_LOADED_MODELS
+
+	local log_file="${OLLAMA_LOG_FILE:-/var/log/ollama.log}"
+	checkpath -f -m 0640 -o "${OLLAMA_USER:-ollama}" "${log_file}"
+	output_log="${log_file}"
+	error_log="${log_file}"
+}
