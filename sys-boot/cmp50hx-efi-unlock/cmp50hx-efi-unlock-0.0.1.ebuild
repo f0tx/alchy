@@ -28,8 +28,8 @@ src_configure() {
 }
 
 src_compile() {
-    local efi_inc=$(tc_get_include_path sys-boot/gnu-efi)
-    local efi_lib=$(tc_get_library_path sys-boot/gnu-efi)
+    local efi_inc="/usr/include/efi"
+    local efi_lib="/usr/lib64"
 
     if [[ ! -d "${efi_inc}" ]]; then
         die "gnu-efi headers not found at ${efi_inc}"
