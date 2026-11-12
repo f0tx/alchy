@@ -17,6 +17,8 @@ IUSE=""
 DEPEND="sys-boot/gnu-efi"
 RDEPEND=""
 
+PATCHES=( "${FILESDIR}/cmp50hx-efi-unlock-fix.patch" )
+
 S="${WORKDIR}/cmp50hx-unlock-master"
 
 src_prepare() {

@@ -1,0 +1,57 @@
+--- a/efi-unlock/unlock50x_v1.c
++++ b/efi-unlock/unlock50x_v1.c
+@@ -4133,6 +4133,12 @@ static int u40x_find_gpu_pass(INTN enc)
+                 ((id >> 16) & 0xFFFFu) == 0x1E09u) {
+                 gBus = b; gDev = d; gFn = f;
++                /* Diag: read revision + subsystem IDs after card found */
++                UINT32 rev = u40x_pci_rbdf(b, d, f, 0x08, enc);
++                UINT32 ssv = u40x_pci_rbdf(b, d, f, 0x2C, enc);
++                Print(L"[50HX f] sweep hit enc=%d %02x:%02x.%x id=0x%08x rev=0x%02x ssvid:ssdev=0x%04x:%04x\n",
++                      (INTN)enc, (INTN)b, (INTN)d, (INTN)f, id,
++                      (UINT8)(rev & 0xFFu), (UINT16)(ssv & 0xFFFFu), (UINT16)((ssv >> 16) & 0xFFFFu));
+                 u40x_enc_found = enc;
+                 Print(L"[50HX f] sweep hit enc=%d %02x:%02x.%x id=0x%08x\n",
+                       (INTN)enc, (INTN)b, (INTN)d, (INTN)f, id);
+@@ -1306,7 +1312,7 @@ static void
+ falcon_wait_reset_ready(UINT32 hwcfg2Reg)
+ {
+     UINTN i;
+-    for (i = 0; i < 10000; i++) {
++    for (i = 0; i < 200000; i++) {
+         if (mmio_read32(hwcfg2Reg) & (1u << 31))
+             return;
+-        uefi_call_wrapper(BS->Stall, 1, 100);
++        uefi_call_wrapper(BS->Stall, 1, 50);
+     }
+ }
+@@ -1725,10 +1731,13 @@ static EFI_STATUS
+    /* v2.34: kflcnPreResetWait — ждать HWCFG2 RESET_READY (bit31), как драйвер */
+    for (i = 0; i < 100000; i++) {
+        data = mmio_read32(0x84001C);   /* SEC2 HWCFG2 */
+-        if (data & 0x80000000) break;
+-        if (i == 99999)
+-            Print(L"booter: WARNING RESET_READY did not arrive (HWCFG2=0x%08x)\n", data);
++        if (data & 0x80000000) {
++            Print(L"booter: RESET_READY arrived after %d iters\n", (INTN)i);
++            break;
++        }
++    }
++    if (!(data & 0x80000000u))
++        Print(L"booter: RESET_READY never arrived (HWCFG2=0x%08x) — proceeding anyway\n", data);
+     Print(L"booter: SEC2 HWCFG2=0x%08x (RESET_READY=bit31)\n", data);
+ 
+@@ -1743,6 +1752,16 @@ static EFI_STATUS
+     uefi_call_wrapper(BS->Stall, 1, 50000);   /* дать ресету дойти до конца */
+ 
++    /* v2.99: if RESET_READY never arrived, retry ENGINE reset once more */
++    if (!(data & 0x80000000u)) {
++        Print(L"booter: retry ENGINE reset due to missing RESET_READY\n");
++        mmio_write32(SEC2_ENGINE, 0x1);
++        for (i = 0; i < 16; i++) mmio_read32(SEC2_ENGINE);
++        mmio_write32(SEC2_ENGINE, 0x0);
++        for (i = 0; i < 16; i++) mmio_read32(SEC2_ENGINE);
++        uefi_call_wrapper(BS->Stall, 1, 100000);
++    }
++
+     /* v2.41: kflcnSwitchToFalcon — ТРЕЙС драйвера: BCR_CTRL=0x0 (НЕ 0x1!).
+      * VALID ставит HW. (Трейс 2026-08-21: 0x841668 = 0x00000000.) */
