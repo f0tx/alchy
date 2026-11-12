@@ -1,0 +1,27 @@
+--- a/ggml/src/ggml-cuda/common.cuh
++++ b/ggml/src/ggml-cuda/common.cuh
+@@ -751,4 +751,24 @@ static __device__ __forceinline__ int ggml_cuda_dp4a(const int a, const int b, i
+ #if __CUDA_ARCH__ >= GGML_CUDA_CC_DP4A || defined(GGML_USE_MUSA)
++#if defined(GGML_CUDA_CMP_EMU_DP4A)
++    // Emulate __dp4a with PTX mad.lo.s32 to bypass NVIDIA CMP GPU throttling
++    // Reference: https://habr.com/ru/articles/1097816/
++    int result = c;
++    const int8_t * a8 = (const int8_t *) &a;
++    const int8_t * b8 = (const int8_t *) &b;
++    asm volatile (
++        "mad.lo.s32 %0, %1, %2, %3;\n\t"
++        "mad.lo.s32 %0, %4, %5, %0;\n\t"
++        "mad.lo.s32 %0, %6, %7, %0;\n\t"
++        "mad.lo.s32 %0, %8, %9, %0;\n\t"
++        : "+r"(result)
++        : "r"((int)a8[0]), "r"((int)b8[0]), "r"(result),
++          "r"((int)a8[1]), "r"((int)b8[1]), "r"(result),
++          "r"((int)a8[2]), "r"((int)b8[2]), "r"(result),
++          "r"((int)a8[3]), "r"((int)b8[3]), "r"(result)
++    );
++    return result;
++#else
+     return __dp4a(a, b, c);
++#endif
+ #else // __CUDA_ARCH__ >= GGML_CUDA_CC_DP4A || defined(GGML_USE_MUSA)
+     const int8_t * a8 = (const int8_t *) &a;
