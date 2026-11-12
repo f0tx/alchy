@@ -48,7 +48,7 @@ src_install() {
     insinto /usr/lib/cmp50hx-efi-unlock
     doins "${S}/efi-unlock/50HXUNLK.EFI"
 
-    dodoc "${S}/README.md" "${S}/NOTICE.md" "${S}/efi-unlock/README.md"
+    dodoc "${S}/README.md" "${S}/README.RU.md" "${S}/findings.md" "${S}/efi-unlock/README.md"
     newdoc "${S}/efi-unlock/runs/20260910-ab-stock-vs-efi.md" results-ab-stock-vs-efi.md
 }
 
