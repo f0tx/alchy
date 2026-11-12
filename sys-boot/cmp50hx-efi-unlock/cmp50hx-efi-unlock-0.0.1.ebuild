@@ -17,7 +17,7 @@ IUSE=""
 DEPEND="sys-boot/gnu-efi"
 RDEPEND=""
 
-S="${WORKDIR}/${P}"
+S="${WORKDIR}/cmp50hx-unlock-master"
 
 src_prepare() {
     default
