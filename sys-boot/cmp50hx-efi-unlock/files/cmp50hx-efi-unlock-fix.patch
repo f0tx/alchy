@@ -1,18 +1,17 @@
+diff --git a/efi-unlock/unlock50x_v1.c b/efi-unlock/unlock50x_v1.c
+index cbfcf37..99dcb25 100644
 --- a/efi-unlock/unlock50x_v1.c
 +++ b/efi-unlock/unlock50x_v1.c
-@@ -4133,6 +4133,12 @@ static int u40x_find_gpu_pass(INTN enc)
-                 ((id >> 16) & 0xFFFFu) == 0x1E09u) {
-                 gBus = b; gDev = d; gFn = f;
-+                /* Diag: read revision + subsystem IDs after card found */
-+                UINT32 rev = u40x_pci_rbdf(b, d, f, 0x08, enc);
-+                UINT32 ssv = u40x_pci_rbdf(b, d, f, 0x2C, enc);
-+                Print(L"[50HX f] sweep hit enc=%d %02x:%02x.%x id=0x%08x rev=0x%02x ssvid:ssdev=0x%04x:%04x\n",
-+                      (INTN)enc, (INTN)b, (INTN)d, (INTN)f, id,
-+                      (UINT8)(rev & 0xFFu), (UINT16)(ssv & 0xFFFFu), (UINT16)((ssv >> 16) & 0xFFFFu));
-                 u40x_enc_found = enc;
-                 Print(L"[50HX f] sweep hit enc=%d %02x:%02x.%x id=0x%08x\n",
-                       (INTN)enc, (INTN)b, (INTN)d, (INTN)f, id);
-@@ -1306,7 +1312,7 @@ static void
+@@ -1292,7 +1292,7 @@ falcon_wait_scrub_done(UINT32 dmactlReg, UINT32 hwcfg2Reg, const CHAR16 *tag)
+             if (!(hcfg & (1 << 12)))              /* HWCFG2.MEM_SCRUBBING готов */
+                 return TRUE;
+         }
+-        uefi_call_wrapper(BS->Stall, 1, 100);
++        uefi_call_wrapper(BS->Stall, 1, 50);
+     }
+     Print(L"%s: scrub-wait TIMEOUT dmactl=0x%08x hwcfg2=0x%08x\n", tag, dct, hcfg);
+     return FALSE;
+@@ -1303,10 +1303,10 @@ static void
  falcon_wait_reset_ready(UINT32 hwcfg2Reg)
  {
      UINTN i;
@@ -24,10 +23,11 @@
 +        uefi_call_wrapper(BS->Stall, 1, 50);
      }
  }
-@@ -1725,10 +1731,13 @@ static EFI_STATUS
-    /* v2.34: kflcnPreResetWait — ждать HWCFG2 RESET_READY (bit31), как драйвер */
-    for (i = 0; i < 100000; i++) {
-        data = mmio_read32(0x84001C);   /* SEC2 HWCFG2 */
+ 
+@@ -1725,10 +1725,13 @@ booter_load_v67(UINT64 wprMetaPhys, UINT64 ucodePhys)
+     /* v2.34: kflcnPreResetWait — ждать HWCFG2 RESET_READY (bit31), как драйвер */
+     for (i = 0; i < 100000; i++) {
+         data = mmio_read32(0x84001C);   /* SEC2 HWCFG2 */
 -        if (data & 0x80000000) break;
 -        if (i == 99999)
 -            Print(L"booter: WARNING RESET_READY did not arrive (HWCFG2=0x%08x)\n", data);
@@ -35,12 +35,14 @@
 +            Print(L"booter: RESET_READY arrived after %d iters\n", (INTN)i);
 +            break;
 +        }
-+    }
+     }
 +    if (!(data & 0x80000000u))
 +        Print(L"booter: RESET_READY never arrived (HWCFG2=0x%08x) — proceeding anyway\n", data);
      Print(L"booter: SEC2 HWCFG2=0x%08x (RESET_READY=bit31)\n", data);
  
-@@ -1743,6 +1752,16 @@ static EFI_STATUS
+     Print(L"booter: SEC2 reset (ENGINE 0x8403C0)...\n");
+@@ -1740,6 +1743,16 @@ booter_load_v67(UINT64 wprMetaPhys, UINT64 ucodePhys)
+     falcon_wait_scrub_done(SEC2_DMACTL, SEC2_HWCFG2, L"sec2-reset");
      uefi_call_wrapper(BS->Stall, 1, 50000);   /* дать ресету дойти до конца */
  
 +    /* v2.99: if RESET_READY never arrived, retry ENGINE reset once more */
@@ -55,3 +57,17 @@
 +
      /* v2.41: kflcnSwitchToFalcon — ТРЕЙС драйвера: BCR_CTRL=0x0 (НЕ 0x1!).
       * VALID ставит HW. (Трейс 2026-08-21: 0x841668 = 0x00000000.) */
+     mmio_write32(SEC2_BCR_CTRL, 0x0);
+@@ -4131,6 +4144,12 @@ static int u40x_find_gpu_pass(INTN enc)
+                 if ((id & 0xFFFFu) == 0x10DEu &&
+                     ((id >> 16) & 0xFFFFu) == 0x1E09u) {
+                     gBus = b; gDev = d; gFn = f;
++                    /* Diag: read revision + subsystem IDs after card found */
++                    UINT32 rev = u40x_pci_rbdf(b, d, f, 0x08, enc);
++                    UINT32 ssv = u40x_pci_rbdf(b, d, f, 0x2C, enc);
++                    Print(L"[50HX f] sweep hit enc=%d %02x:%02x.%x id=0x%08x rev=0x%02x ssvid:ssdev=0x%04x:%04x\n",
++                          (INTN)enc, (INTN)b, (INTN)d, (INTN)f, id,
++                          (UINT8)(rev & 0xFFu), (UINT16)(ssv & 0xFFFFu), (UINT16)((ssv >> 16) & 0xFFFFu));
+                     u40x_enc_found = enc;
+                     Print(L"[50HX f] sweep hit enc=%d %02x:%02x.%x id=0x%08x\n",
+                           (INTN)enc, (INTN)b, (INTN)d, (INTN)f, id);
