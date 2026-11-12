@@ -40,6 +40,7 @@ src_compile() {
     emake CC="$(tc-getCC)" \
         EFI_INC="${efi_inc}" \
         EFI_LIB="${efi_lib}" \
+        SCRIPT_DIR="${FILESDIR}" \
         -f "${FILESDIR}/build-efi.mk"
 }
 
